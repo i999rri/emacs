@@ -23,6 +23,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "blockinput.h"
 #include "w32term.h"
+#include "w32host.h"
 #include "w32common.h"	/* for OS version info */
 #include <wtypes.h>
 #include <gdiplus.h>
@@ -7533,6 +7534,15 @@ w32_make_frame_visible (struct frame *f)
 		      : FRAME_NO_FOCUS_ON_MAP (f)
 		      ? SW_SHOWNOACTIVATE
 		      : SW_SHOWNORMAL);
+
+      /* A frame the host draws is told that it is on the screen rather
+	 than left to find out.  What Emacs would wait for is a paint
+	 message with something in it, and one never comes: the frame is
+	 drawn by the host, out of what redisplay decided, and its own
+	 window is never looked at.  Without this it stays invisible, and
+	 an invisible frame is one redisplay does not lay out.  */
+      if (w32_host_frame_p (FRAME_W32_WINDOW (f)))
+	SET_FRAME_VISIBLE (f, 1);
     }
 
   if (!FLOATP (Vx_wait_for_event_timeout))

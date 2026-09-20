@@ -113,6 +113,14 @@ w32_host_window (void)
   return host_api ? (HWND) host_api->window () : NULL;
 }
 
+bool
+w32_host_frame_p (HWND window)
+{
+  HWND host = w32_host_window ();
+
+  return host && window && GetParent (window) == host;
+}
+
 void
 w32_host_frame_created (HWND window)
 {
