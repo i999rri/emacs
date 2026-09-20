@@ -102,9 +102,9 @@ host_row_kind (struct glyph_matrix *matrix, struct glyph_row *row)
   return Qheader_line;
 }
 
-DEFUN ("window-screen-lines", Fwindow_screen_lines, Swindow_screen_lines,
+DEFUN ("window-screen-rows", Fwindow_screen_rows, Swindow_screen_rows,
        0, 1, 0,
-       doc: /* Return the lines WINDOW is showing, as Emacs drew them.
+       doc: /* Return the rows WINDOW is showing, as Emacs drew them.
 
 Redisplay decides what every line of a window holds: where the text was
 broken, what it was drawn in, what an overlay or a display property put
@@ -119,14 +119,15 @@ is a plist:
   :height  how tall it is
   :ascent  how far its baseline is below its top
   :kind    `text', `mode-line', `header-line' or `tab-line'
+  :start   where in the buffer it begins, or nil if it is not text
   :runs    what is on it
 
 Each run is a plist of :text, :x and :width, followed by the face it was
 drawn in as :foreground, :background, :weight, :slant, :underline,
-:family and :size.  X counts from the left of the text of WINDOW, not
-from the left of WINDOW.  A run whose :text is nil is a blank that
-wide, which is what a stretch of space, an image, or a character the
-font has no glyph for comes to.
+:family and :size.  X and Y both count from the top left corner of
+WINDOW.  A run whose :text is nil is a blank that wide, which is what a
+stretch of space, an image, or a character the font has no glyph for
+comes to.
 
 WINDOW defaults to the selected one.  The value is nil if Emacs has not
 drawn WINDOW yet.  */)
@@ -142,8 +143,20 @@ drawn WINDOW yet.  */)
   if (!matrix || !matrix->rows)
     return Qnil;
 
-  /* A line holds no more characters than it has glyphs.  */
-  SAFE_NALLOCA (text, MAX_MULTIBYTE_LENGTH, matrix->matrix_w + 1);
+  /* A line holds no more characters than it has glyphs, and no row has
+     more glyphs than the longest.  The matrix says how wide it is, but
+     says it of the frame it was made for rather than of the rows it
+     ended up with, so the rows are asked instead.  */
+  int widest = 0;
+
+  for (int i = 0; i < matrix->nrows; ++i)
+    {
+      int used = MATRIX_ROW (matrix, i)->used[TEXT_AREA];
+
+      if (used > widest)
+	widest = used;
+    }
+  SAFE_NALLOCA (text, MAX_MULTIBYTE_LENGTH, widest + 1);
 
   for (int i = 0; i < matrix->nrows; ++i)
     {
@@ -151,25 +164,35 @@ drawn WINDOW yet.  */)
       struct glyph *glyphs = row->glyphs[TEXT_AREA];
       int used = row->used[TEXT_AREA];
       Lisp_Object runs = Qnil;
-      int x = row->x;
+      /* A line of text begins where the text of the window begins,
+	 past the margin and the fringe; a mode line is as wide as the
+	 window and begins at its edge.  Both are given from the edge,
+	 so that what draws them has one origin to draw from.  */
+      int x = row->x + (row->full_width_p
+			? 0 : window_box_left_offset (w, TEXT_AREA));
       int start = 0;
 
       if (!row->enabled_p)
 	continue;
 
-      /* A run ends where the face changes, and where text gives way to
-	 what is not text or the other way about.  */
+      /* A run ends where the face changes, where text gives way to what
+	 is not text or the other way about, and where the characters
+	 stop being the same width: what draws the run has to space its
+	 characters the way Emacs spaced them, and can only do that for
+	 one width at a time.  */
       while (start < used)
 	{
 	  int face_id = glyphs[start].face_id;
 	  bool texts = glyphs[start].type == CHAR_GLYPH;
+	  short advance = glyphs[start].pixel_width;
 	  ptrdiff_t nchars = 0, nbytes = 0;
 	  int width = 0;
 	  int end = start;
 
 	  while (end < used
 		 && glyphs[end].face_id == face_id
-		 && (glyphs[end].type == CHAR_GLYPH) == texts)
+		 && (glyphs[end].type == CHAR_GLYPH) == texts
+		 && (!texts || glyphs[end].pixel_width == advance))
 	    {
 	      /* A padding glyph is the rest of a character that is
 		 already there, and takes no room of its own.  */
@@ -194,6 +217,12 @@ drawn WINDOW yet.  */)
 			   QCheight, make_fixnum (row->height),
 			   QCascent, make_fixnum (row->ascent),
 			   QCkind, host_row_kind (matrix, row),
+			   /* Which line of the buffer this is, so that
+			      one that has only scrolled is known to be
+			      the line it was.  */
+			   QCstart, (row->mode_line_p
+				     ? Qnil
+				     : make_int (MATRIX_ROW_START_CHARPOS (row))),
 			   QCruns, Fnreverse (runs)),
 		     lines);
     }
@@ -207,7 +236,7 @@ DEFUN ("window-screen-cursor", Fwindow_screen_cursor, Swindow_screen_cursor,
        doc: /* Return where the cursor is in WINDOW, as Emacs drew it.
 
 The value is a plist of :x, :y, :width and :height, in the pixels and
-from the corner `window-screen-lines' counts in, or nil if the cursor
+from the corner `window-screen-rows' counts in, or nil if the cursor
 is not in WINDOW.
 
 WINDOW defaults to the selected one.  */)
@@ -237,7 +266,8 @@ WINDOW defaults to the selected one.  */)
 	width = glyph_width;
     }
 
-  return list (QCx, make_fixnum (w->cursor.x),
+  return list (QCx, make_fixnum (w->cursor.x
+				 + window_box_left_offset (w, TEXT_AREA)),
 	       QCy, make_fixnum (w->cursor.y),
 	       QCwidth, make_fixnum (width),
 	       QCheight, make_fixnum (row->height));
@@ -251,7 +281,8 @@ syms_of_hostscreen (void)
   DEFSYM (QCy, ":y");
   DEFSYM (QCruns, ":runs");
   DEFSYM (QCkind, ":kind");
+  DEFSYM (QCstart, ":start");
 
-  defsubr (&Swindow_screen_lines);
+  defsubr (&Swindow_screen_rows);
   defsubr (&Swindow_screen_cursor);
 }
