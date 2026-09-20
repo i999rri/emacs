@@ -685,9 +685,26 @@ w32_update_window_begin (struct window *w)
 
 /* Draw a vertical window border from (x,y0) to (x,y1)  */
 
+/* Whether F is drawn by a host application.
+
+   Emacs lays such a frame out as it lays out any other, and draws none
+   of it: the host reads the layout back with `window-screen-rows' and
+   draws it in whatever it draws with.  Drawing it here as well would
+   be work for a window nobody is shown.  */
+
+static bool
+w32_host_drawn (struct frame *f)
+{
+  return f && FRAME_W32_P (f) && w32_host_frame_p (FRAME_W32_WINDOW (f));
+}
+
 static void
 w32_draw_vertical_window_border (struct window *w, int x, int y0, int y1)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (XFRAME (w->frame)))
+    return;
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   RECT r;
   HDC hdc;
@@ -714,6 +731,10 @@ w32_draw_vertical_window_border (struct window *w, int x, int y0, int y1)
 static void
 w32_draw_window_divider (struct window *w, int x0, int x1, int y0, int y1)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (XFRAME (w->frame)))
+    return;
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   HDC hdc = get_frame_dc (f);
   struct face *face = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FACE_ID);
@@ -839,6 +860,10 @@ w32_flip_buffers_if_dirty (struct frame *f)
 static void
 w32_after_update_window_line (struct window *w, struct glyph_row *desired_row)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (XFRAME (w->frame)))
+    return;
   struct frame *f;
   int width, height;
 
@@ -902,6 +927,10 @@ static void
 w32_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 			struct draw_fringe_bitmap_params *p)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (XFRAME (w->frame)))
+    return;
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   HDC hdc;
   struct face *face = p->face;
@@ -2718,6 +2747,10 @@ w32_fill_underline (struct frame *f, struct glyph_string *s,
 static void
 w32_draw_glyph_string (struct glyph_string *s)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (s->f))
+    return;
   bool relief_drawn_p = 0;
 
   /* If S draws into the background of its successor, draw the
@@ -3043,6 +3076,10 @@ static void
 w32_shift_glyphs_for_insert (struct frame *f, int x, int y,
 			     int width, int height, int shift_by)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (f))
+    return;
   HDC hdc;
 
   hdc = get_frame_dc (f);
@@ -3071,6 +3108,10 @@ w32_delete_glyphs (struct frame *f, register int n)
 static void
 w32_clear_frame (struct frame *f)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (f))
+    return;
   if (! FRAME_W32_P (f))
     return;
 
@@ -3137,6 +3178,10 @@ w32_ins_del_lines (struct frame *f, int vpos, int n)
 static void
 w32_scroll_run (struct window *w, struct run *run)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (XFRAME (w->frame)))
+    return;
   struct frame *f = XFRAME (w->frame);
   int x, y, width, height, from_y, to_y, bottom_y;
   HDC hdc;
@@ -6629,6 +6674,10 @@ w32_define_frame_cursor (struct frame *f, Emacs_Cursor cursor)
 static void
 w32_clear_frame_area (struct frame *f, int x, int y, int width, int height)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (f))
+    return;
   HDC hdc;
 
   hdc = get_frame_dc (f);
@@ -6643,6 +6692,10 @@ w32_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
 			int x, int y, enum text_cursor_kinds cursor_type,
 			int cursor_width, bool on_p, bool active_p)
 {
+
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_drawn (XFRAME (w->frame)))
+    return;
   if (on_p)
     {
       /* If the user wants to use the system caret, make sure our own

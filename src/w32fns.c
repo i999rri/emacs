@@ -1584,6 +1584,10 @@ w32_clear_under_internal_border (struct frame *f)
 {
   int border = FRAME_INTERNAL_BORDER_WIDTH (f);
 
+  /* Nothing of a frame the host draws is drawn here.  */
+  if (w32_host_frame_p (FRAME_W32_WINDOW (f)))
+    return;
+
   /* Clear border if it's larger than before.  */
   if (border != 0)
     {
