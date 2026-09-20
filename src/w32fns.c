@@ -55,6 +55,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "coding.h"
 
 #include "w32common.h"
+#include "w32host.h"
 #include "w32inevt.h"
 
 #ifdef WINDOWSNT
@@ -2701,7 +2702,15 @@ w32_createwindow (struct frame *f, int *coords)
   Lisp_Object border_width = Fcdr (Fassq (Qborder_width, f->param_alist));
   static EMACS_INT touch_base;
 
-  if (FRAME_PARENT_FRAME (f) && FRAME_W32_P (FRAME_PARENT_FRAME (f)))
+  /* A host application draws the window this frame goes in, and puts
+     the frame where it wants it there.  A frame that belongs to
+     another frame is placed by Emacs as ever, inside that one.  */
+  if (!FRAME_PARENT_FRAME (f) && !f->output_data.w32->explicit_parent)
+    parent_hwnd = w32_host_window ();
+
+  if (parent_hwnd)
+    f->output_data.w32->dwStyle = WS_CHILD | WS_CLIPSIBLINGS;
+  else if (FRAME_PARENT_FRAME (f) && FRAME_W32_P (FRAME_PARENT_FRAME (f)))
     {
       parent_hwnd = FRAME_W32_WINDOW (FRAME_PARENT_FRAME (f));
       f->output_data.w32->dwStyle = WS_CHILD | WS_CLIPSIBLINGS;
@@ -2848,6 +2857,11 @@ w32_createwindow (struct frame *f, int *coords)
 
       f->left_pos = rect.left;
       f->top_pos = rect.top;
+
+      /* The host places the frames it takes in, and cannot until it
+	 knows which window to place.  */
+      if (parent_hwnd && parent_hwnd == w32_host_window ())
+	w32_host_frame_created (hwnd);
     }
 }
 

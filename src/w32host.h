@@ -30,7 +30,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifndef W32HOST_H
 #define W32HOST_H
 
-#define W32_HOST_API_VERSION 1
+/* For HWND, below.  The table itself passes the window as a void *,
+   so that a host can take this header on its own terms.  */
+#include <windows.h>
+
+#define W32_HOST_API_VERSION 2
 
 /* Called by the host with one message, from a thread of its own.  The
    message belongs to the host and is not kept.  */
@@ -46,6 +50,12 @@ struct w32_host_api
   /* The host to Emacs.  Called once, with the function that takes the
      messages of the host and the data to pass back to it.  */
   void (*on_event) (w32_host_event_fn fn, void *data);
+
+  /* The window frames are to be made in, as an HWND, or null to leave
+     Emacs its own windows.  The host places and sizes them itself:
+     Emacs says which window it made and where it is in its messages,
+     and does not move it afterwards.  */
+  void *(*window) (void);
 };
 
 /* What the host exports.  Returns null if it does not speak VERSION.  */
@@ -54,5 +64,12 @@ typedef const struct w32_host_api *(*w32_host_get_api_fn) (unsigned version);
 /* Ask the host for its interface.  Does nothing if there is no host.  */
 extern void init_w32host (void);
 extern void syms_of_w32host (void);
+
+/* The window the host wants frames in, or null when Emacs makes its
+   own windows, which is whenever there is no host.  */
+extern HWND w32_host_window (void);
+
+/* Tell the host about a frame's window, once it has been made.  */
+extern void w32_host_frame_created (HWND);
 
 #endif /* W32HOST_H */

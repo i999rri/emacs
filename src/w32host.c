@@ -107,6 +107,27 @@ receive_host_event (void *data, const char *message)
   LeaveCriticalSection (&event_lock);
 }
 
+HWND
+w32_host_window (void)
+{
+  return host_api ? (HWND) host_api->window () : NULL;
+}
+
+void
+w32_host_frame_created (HWND window)
+{
+  char message[128];
+
+  if (!host_api)
+    return;
+
+  /* A window handle fits in a JSON number: Windows keeps them small
+     enough that no precision is lost.  */
+  sprintf (message, "{\"type\":\"frame\",\"window\":%"PRIdMAX"}",
+	   (intmax_t) (INT_PTR) window);
+  host_api->post (message);
+}
+
 DEFUN ("w32-host-available-p", Fw32_host_available_p, Sw32_host_available_p,
        0, 0, 0,
        doc: /* Return t if Emacs runs inside a host application.
