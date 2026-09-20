@@ -17,6 +17,14 @@
 # You should have received a copy of the GNU General Public License
 # along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+# Check every file out as it is stored, converting nothing.  Git on
+# MS-Windows turns line endings into CRLF by default, and a checkout
+# that has been through that does not build: autoconf reads the stray
+# return as part of a macro argument and stops.  Where Git converts
+# nothing anyway, which is everywhere else, this says what already
+# happens.
+* -text
+
 # A few UTF-8-compatible text files use CRLF endings,
 # even on non-Microsoft platforms.
 # Do not warn about trailing whitespace with these files.
