@@ -4413,6 +4413,9 @@ extern Lisp_Object safe_eval (Lisp_Object);
 extern bool pos_visible_p (struct window *, ptrdiff_t, int *,
 			   int *, int *, int *, int *, int *);
 
+/* Defined in hostscreen.c.  */
+extern void syms_of_hostscreen (void);
+
 /* Defined in sqlite.c.  */
 extern void syms_of_sqlite (void);
 
