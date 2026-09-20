@@ -1585,7 +1585,7 @@ w32_clear_under_internal_border (struct frame *f)
   int border = FRAME_INTERNAL_BORDER_WIDTH (f);
 
   /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_frame_p (FRAME_W32_WINDOW (f)))
+  if (f->output_data.w32->host_drawn)
     return;
 
   /* Clear border if it's larger than before.  */
@@ -2706,14 +2706,21 @@ w32_createwindow (struct frame *f, int *coords)
   Lisp_Object border_width = Fcdr (Fassq (Qborder_width, f->param_alist));
   static EMACS_INT touch_base;
 
-  /* A host application draws the window this frame goes in, and puts
-     the frame where it wants it there.  A frame that belongs to
-     another frame is placed by Emacs as ever, inside that one.  */
-  if (!FRAME_PARENT_FRAME (f) && !f->output_data.w32->explicit_parent)
-    parent_hwnd = w32_host_window ();
-
-  if (parent_hwnd)
-    f->output_data.w32->dwStyle = WS_CHILD | WS_CLIPSIBLINGS;
+  /* A host application draws this frame itself, out of the layout it
+     reads back, so the frame needs no window on any screen.  What it
+     still needs a window for is to be posted to and to be asked for a
+     device context to measure text with, and a message-only window is
+     both of those and nothing else: it belongs to no desktop, so there
+     is nowhere for it to be seen, and nothing to draw, clip, raise or
+     hide.  A frame that belongs to another frame is placed by Emacs as
+     ever, inside that one.  */
+  if (!FRAME_PARENT_FRAME (f) && !f->output_data.w32->explicit_parent
+      && w32_host_window ())
+    {
+      f->output_data.w32->host_drawn = 1;
+      f->output_data.w32->dwStyle = WS_POPUP;
+      parent_hwnd = HWND_MESSAGE;
+    }
   else if (FRAME_PARENT_FRAME (f) && FRAME_W32_P (FRAME_PARENT_FRAME (f)))
     {
       parent_hwnd = FRAME_W32_WINDOW (FRAME_PARENT_FRAME (f));
@@ -2862,9 +2869,9 @@ w32_createwindow (struct frame *f, int *coords)
       f->left_pos = rect.left;
       f->top_pos = rect.top;
 
-      /* The host places the frames it takes in, and cannot until it
-	 knows which window to place.  */
-      if (parent_hwnd && parent_hwnd == w32_host_window ())
+      /* The host sends this frame its input, and cannot until it knows
+	 which window to send it to.  */
+      if (f->output_data.w32->host_drawn)
 	w32_host_frame_created (hwnd);
     }
 }

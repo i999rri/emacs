@@ -695,7 +695,7 @@ w32_update_window_begin (struct window *w)
 static bool
 w32_host_drawn (struct frame *f)
 {
-  return f && FRAME_W32_P (f) && w32_host_frame_p (FRAME_W32_WINDOW (f));
+  return f && FRAME_W32_P (f) && f->output_data.w32->host_drawn;
 }
 
 static void
@@ -6460,6 +6460,12 @@ w32_read_socket (struct terminal *terminal,
 	/* Check "visible" frames and mark each as visible or not.
 	   Note that visible is nonzero for unobscured and obscured
 	   frames, but zero for hidden and iconified frames.  */
+	/* A frame the host draws is on the host's screen, and asking
+	   the window it does not draw into whether any of it can be
+	   seen would say no and is work besides.  */
+	if (w32_host_drawn (f))
+	  continue;
+
 	if (FRAME_W32_P (f) && FRAME_VISIBLE_P (f))
 	  {
 	    RECT clipbox;
@@ -7592,9 +7598,10 @@ w32_make_frame_visible (struct frame *f)
 	 than left to find out.  What Emacs would wait for is a paint
 	 message with something in it, and one never comes: the frame is
 	 drawn by the host, out of what redisplay decided, and its own
-	 window is never looked at.  Without this it stays invisible, and
-	 an invisible frame is one redisplay does not lay out.  */
-      if (w32_host_frame_p (FRAME_W32_WINDOW (f)))
+	 window is on no screen to paint on.  Without this it stays
+	 invisible, and an invisible frame is one redisplay does not lay
+	 out.  */
+      if (w32_host_drawn (f))
 	SET_FRAME_VISIBLE (f, 1);
     }
 

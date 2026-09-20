@@ -72,8 +72,4 @@ extern HWND w32_host_window (void);
 /* Tell the host about a frame's window, once it has been made.  */
 extern void w32_host_frame_created (HWND);
 
-/* Whether WINDOW is a frame the host draws, which is one Emacs made a
-   child of the host's window.  */
-extern bool w32_host_frame_p (HWND);
-
 #endif /* W32HOST_H */
