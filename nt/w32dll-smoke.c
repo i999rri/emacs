@@ -64,11 +64,20 @@ host_on_event (w32_host_event_fn fn, void *data)
   event_data = data;
 }
 
+/* No window: a host of this size has none, and Emacs makes its own as
+   it does when it runs on its own.  */
+static void *
+host_window (void)
+{
+  return NULL;
+}
+
 static const struct w32_host_api host_api =
   {
     W32_HOST_API_VERSION,
     host_post,
-    host_on_event
+    host_on_event,
+    host_window
   };
 
 __declspec (dllexport) const struct w32_host_api *w32_host_get_api (unsigned);
