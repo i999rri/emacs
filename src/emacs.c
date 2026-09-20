@@ -1316,12 +1316,18 @@ maybe_load_seccomp (int argc, char **argv)
 
 #endif  /* SECCOMP_USABLE */
 
-#if !defined HAVE_ANDROID || defined ANDROID_STUBIFY
-int
-main (int argc, char **argv)
-#else
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
 int
 android_emacs_init (int argc, char **argv, char *dump_file)
+#elif defined EMACS_W32_DLL
+/* In libemacs.dll, main belongs to the host application.  The exported
+   entry point in w32dll.c does what _start does for emacs.exe, then
+   calls this.  */
+int
+w32_emacs_main (int argc, char **argv)
+#else
+int
+main (int argc, char **argv)
 #endif
 {
   /* Variable near the bottom of the stack, and aligned appropriately

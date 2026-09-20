@@ -62,6 +62,9 @@ extern bool w32_valid_process_id (intmax_t);
 extern _Noreturn void *malloc_before_init (size_t);
 extern _Noreturn void *realloc_before_init (void *, size_t);
 extern _Noreturn void free_before_init (void *);
+
+/* Emacs's main when it is built as libemacs.dll (emacs.c).  */
+extern int w32_emacs_main (int, char **);
 #endif
 
 typedef void (* VOIDFNPTR) (void);

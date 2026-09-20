@@ -703,6 +703,34 @@ endif
 ## existence when setting Vinstallation_directory (FIXME?).
 ## This goes on to affect various things, and the emacs binary fails
 ## to start if Vinstallation_directory has the wrong value.
+## libemacs.dll is Emacs as a DLL that a host application loads and
+## starts on a thread of its own (MS-Windows only).  It has the objects
+## of temacs, except that emacs.c is compiled with EMACS_W32_DLL, so
+## that main becomes w32_emacs_main, and w32dll.o adds the exported
+## entry point.  w32start.o goes away with it: _start is what the CRT
+## of an executable calls, and it needs mainCRTStartup, which a DLL
+## does not have.  The link leaves out LD_SWITCH_SYSTEM_TEMACS: its
+## entry point, stack size and image base are for emacs.exe.
+##
+## emacs-dll.o also depends on emacs.o, which tracks the headers
+## emacs.c includes.
+DLL_OBJS = $(filter-out emacs.o w32start.o,$(ALLOBJS)) emacs-dll.o w32dll.o
+
+emacs-dll.o: $(srcdir)/emacs.c emacs.o
+	$(AM_V_CC)$(CC) -c $(CPPFLAGS) $(ALL_CFLAGS) $(PROFILING_CFLAGS) \
+	  -DEMACS_W32_DLL -o $@ $(srcdir)/emacs.c
+
+libemacs.dll: $(DLL_OBJS) \
+  $(LIBEGNU_ARCHIVE) $(MAKE_PDUMPER_FINGERPRINT)
+	$(AM_V_CCLD)$(CC) -shared -o $@.tmp \
+	  $(ALL_CFLAGS) $(CXXFLAGS) $(LD_SWITCH_SYSTEM) $(LDFLAGS) \
+	  $(DLL_OBJS) \
+	  $(LIBEGNU_ARCHIVE) $(LIBES)
+ifeq ($(HAVE_PDUMPER),yes)
+	$(AM_V_at)$(MAKE_PDUMPER_FINGERPRINT) $@.tmp
+endif
+	$(AM_V_at)mv $@.tmp $@
+
 temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
   $(charsets) $(charscript) ${emoji-zwj} $(MAKE_PDUMPER_FINGERPRINT)
 ifeq ($(HAVE_BE_APP),yes)
@@ -792,7 +820,7 @@ ns-app: emacs$(EXEEXT) $(pdmp)
 .PHONY: versionclean
 
 mostlyclean:
-	rm -f android-emacs libemacs.so
+	rm -f android-emacs libemacs.so libemacs.dll libemacs.pdmp
 	rm -f temacs$(EXEEXT) core ./*.core \#* ./*.o build-counter.c
 	rm -f dmpstruct.h
 	rm -f emacs.pdmp
