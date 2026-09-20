@@ -49,6 +49,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <filename.h>	/* for IS_ABSOLUTE_FILE_NAME */
 #include "w32.h"
 #include "w32heap.h"
+#include "w32host.h"
 #endif
 
 #if defined WINDOWSNT || defined HAVE_NTGUI
@@ -2209,6 +2210,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
      Emacs.  */
   init_environment (argv);
   init_ntproc (will_dump_p ()); /* must precede init_editfns.  */
+  init_w32host ();
 #endif
 
   /* Init buffer storage and default directory of main buffer.  */
@@ -2499,6 +2501,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_w32notify ();
 #endif /* HAVE_W32NOTIFY */
       syms_of_w32dwrite ();
+      syms_of_w32host ();
 #endif /* WINDOWSNT */
 
       syms_of_xwidget ();

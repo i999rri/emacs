@@ -20,11 +20,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 /* Loads libemacs.dll from its own directory and runs Emacs on a new
    thread, passing its command line through unchanged, for example:
 
-     w32dll-smoke --batch --dump-file=libemacs.pdmp --eval "(message \"hi\")"
+     w32dll-smoke --batch --eval "(message \"hi\")"
+
+   It is also a host in the sense of w32host.h, the least one that can
+   be: it prints what Emacs posts and sends the same text back as an
+   event, so that both directions can be seen from a command line.
 
    Build in the MSYS2 mingw64 shell and place next to libemacs.dll:
 
-     gcc -O2 -o w32dll-smoke.exe w32dll-smoke.c -Wl,--stack,0x00800000
+     gcc -O2 -I../src -o w32dll-smoke.exe w32dll-smoke.c \
+       -Wl,--stack,0x00800000
 
    The --stack option matters too: threads Emacs creates for Lisp take
    their stack size from the executable.  */
@@ -33,7 +38,46 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "w32host.h"
+
 typedef int (*w32_emacs_init_fn) (int, char **);
+
+static w32_host_event_fn event_sink;
+static void *event_data;
+
+static void
+host_post (const char *message)
+{
+  printf ("host: %s\n", message);
+  fflush (stdout);
+
+  /* Send it straight back, which is all a host of this size can think
+     of to do with it.  */
+  if (event_sink)
+    event_sink (event_data, message);
+}
+
+static void
+host_on_event (w32_host_event_fn fn, void *data)
+{
+  event_sink = fn;
+  event_data = data;
+}
+
+static const struct w32_host_api host_api =
+  {
+    W32_HOST_API_VERSION,
+    host_post,
+    host_on_event
+  };
+
+__declspec (dllexport) const struct w32_host_api *w32_host_get_api (unsigned);
+
+const struct w32_host_api *
+w32_host_get_api (unsigned version)
+{
+  return version == W32_HOST_API_VERSION ? &host_api : NULL;
+}
 
 struct emacs_run
 {
