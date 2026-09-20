@@ -26,12 +26,58 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <config.h>
 
 #include <windows.h>
+#include <fcntl.h>
+#include <io.h>
 
 #include "w32common.h"
 
 extern BOOL ctrl_c_handler (unsigned long);
 
 __declspec (dllexport) int w32_emacs_init (int, char **);
+
+/* Give Emacs the standard stream WHICH as file descriptor FD, opened
+   with FLAGS.
+
+   A host application has no console, so the C runtime Emacs is linked
+   against started with nothing at descriptors 0, 1 and 2: what Emacs
+   writes to its standard output goes nowhere, and what it would read
+   from its standard input cannot be read.  The host puts handles of
+   its own in place before Emacs starts; this is what binds them to the
+   descriptors the runtime counts in, which SetStdHandle alone does
+   not.
+
+   The handle is duplicated because the descriptor owns what it is
+   given: closing it would close the host's, and the host goes on using
+   it after Emacs has finished with it.  */
+
+static void
+open_standard_stream (DWORD which, int fd, int flags)
+{
+  HANDLE handle = GetStdHandle (which);
+  HANDLE own;
+  int opened;
+
+  if (!handle || handle == INVALID_HANDLE_VALUE)
+    return;
+
+  if (!DuplicateHandle (GetCurrentProcess (), handle,
+			GetCurrentProcess (), &own,
+			0, FALSE, DUPLICATE_SAME_ACCESS))
+    return;
+
+  opened = _open_osfhandle ((intptr_t) own, flags);
+  if (opened < 0)
+    {
+      CloseHandle (own);
+      return;
+    }
+
+  if (opened != fd)
+    {
+      _dup2 (opened, fd);
+      _close (opened);
+    }
+}
 
 int
 w32_emacs_init (int argc, char **argv)
@@ -47,6 +93,12 @@ w32_emacs_init (int argc, char **argv)
   the_free_fn = free_before_init;
 
   cache_system_info ();
+
+  /* Before anything of Emacs runs: what Emacs says, and what it hands
+     to the programs it runs, both go through these.  */
+  open_standard_stream (STD_INPUT_HANDLE, 0, _O_RDONLY | _O_BINARY);
+  open_standard_stream (STD_OUTPUT_HANDLE, 1, _O_WRONLY | _O_BINARY);
+  open_standard_stream (STD_ERROR_HANDLE, 2, _O_WRONLY | _O_BINARY);
 
   /* Keep Ctrl-C in the console from ending the process, and do not let
      a missing removable drive stop Emacs with a system dialog.  Both
