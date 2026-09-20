@@ -1008,6 +1008,15 @@ load_pdump (int argc, char **argv, char *dump_file)
       goto hardcoded;
     }
 
+#if defined DOS_NT || defined CYGWIN
+  /* Emacs inside a host application is libemacs.dll, and the dump
+     beside it is libemacs.pdmp.  */
+  ptrdiff_t exename_length = strlen (emacs_executable);
+  if (4 <= exename_length
+      && c_strcasecmp (emacs_executable + exename_length - 4, ".dll") == 0)
+    strip_suffix = ".dll";
+#endif
+
   if (dump_file)
     {
       result = pdumper_load (dump_file, emacs_executable);
