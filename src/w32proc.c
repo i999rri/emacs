@@ -86,10 +86,6 @@ static CRITICAL_SECTION crit_sig;
 /* Catch memory allocation before the heap allocation scheme is set
    up.  These functions should never be called, unless code is added
    early on in 'main' that runs before init_heap is called.  */
-_Noreturn void * malloc_before_init (size_t);
-_Noreturn void * realloc_before_init (void *, size_t);
-_Noreturn void   free_before_init (void *);
-
 _Noreturn void *
 malloc_before_init (size_t size)
 {
@@ -112,51 +108,6 @@ free_before_init (void *ptr)
   fprintf (stderr,
 	   "error: 'free' called before setting up heap allocation; exiting.\n");
   exit (-1);
-}
-
-extern BOOL ctrl_c_handler (unsigned long type);
-
-/* MinGW64 doesn't add a leading underscore to external symbols,
-   whereas configure.ac sets up LD_SWITCH_SYSTEM_TEMACS to force the
-   entry point at __start, with two underscores.  */
-#ifdef __MINGW64__
-#define _start __start
-#endif
-
-extern void mainCRTStartup (void);
-
-/* Startup code for running on NT.  When we are running as the dumped
-   version, we need to bootstrap our heap and .bss section into our
-   address space before we can actually hand off control to the startup
-   code supplied by NT (primarily because that code relies upon malloc ()).  */
-void _start (void);
-
-void
-_start (void)
-{
-
-#if 1
-  /* Give us a way to debug problems with crashes on startup when
-     running under the MSVC profiler. */
-  if (GetEnvironmentVariable ("EMACS_DEBUG", NULL, 0) > 0)
-    DebugBreak ();
-#endif
-
-  the_malloc_fn = malloc_before_init;
-  the_realloc_fn = realloc_before_init;
-  the_free_fn = free_before_init;
-
-  /* Cache system info, e.g., the NT page size.  */
-  cache_system_info ();
-
-  /* This prevents ctrl-c's in shells running while we're suspended from
-     having us exit.  */
-  SetConsoleCtrlHandler ((PHANDLER_ROUTINE) ctrl_c_handler, TRUE);
-
-  /* Prevent Emacs from being locked up (eg. in batch mode) when
-     accessing devices that aren't mounted (eg. removable media drives).  */
-  SetErrorMode (SEM_FAILCRITICALERRORS);
-  mainCRTStartup ();
 }
 
 /* Improve on the CRT 'signal' implementation so that we could record

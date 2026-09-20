@@ -55,6 +55,13 @@ extern void cache_system_info (void);
 extern char * w32_version_string (void);
 extern bool w32_valid_process_id (intmax_t);
 # define VALID_PROCESS_ID(p) w32_valid_process_id(p)
+
+/* Allocation functions that stop Emacs if anything allocates before
+   init_heap sets up the heap.  _start (w32start.c) installs them in
+   emacs.exe, and w32_emacs_init (w32dll.c) in libemacs.dll.  */
+extern _Noreturn void *malloc_before_init (size_t);
+extern _Noreturn void *realloc_before_init (void *, size_t);
+extern _Noreturn void free_before_init (void *);
 #endif
 
 typedef void (* VOIDFNPTR) (void);
