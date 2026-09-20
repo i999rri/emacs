@@ -48,7 +48,13 @@ __declspec (dllexport) int w32_emacs_init (int, char **);
 
    The handle is duplicated because the descriptor owns what it is
    given: closing it would close the host's, and the host goes on using
-   it after Emacs has finished with it.  */
+   it after Emacs has finished with it.
+
+   The standard handle itself is then cleared, leaving the process as a
+   windowed program that was started from no console is left: that is
+   what emacs.exe runs as, and what a process holds there is what it
+   hands to the programs it runs.  Leaving the host's pipe there would
+   hand every program a pipe nobody reads on its behalf.  */
 
 static void
 open_standard_stream (DWORD which, int fd, int flags)
@@ -77,6 +83,8 @@ open_standard_stream (DWORD which, int fd, int flags)
       _dup2 (opened, fd);
       _close (opened);
     }
+
+  SetStdHandle (which, NULL);
 }
 
 int
