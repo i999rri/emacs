@@ -192,6 +192,7 @@ extern MultiByteToWideChar_Proc pMultiByteToWideChar;
 extern WideCharToMultiByte_Proc pWideCharToMultiByte;
 extern DWORD multiByteToWideCharFlags;
 
+extern DWORD w32_module_file_name (char *, DWORD);
 extern char *w32_my_exename (void);
 extern const char *w32_relocate (const char *);
 extern char *realpath (const char *, char *);

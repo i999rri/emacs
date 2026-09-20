@@ -3031,7 +3031,7 @@ init_environment (char ** argv)
       char *p;
       char modname[MAX_PATH];
 
-      if (!GetModuleFileNameA (NULL, modname, MAX_PATH))
+      if (!w32_module_file_name (modname, MAX_PATH))
 	emacs_abort ();
       if ((p = _mbsrchr (modname, '\\')) == NULL)
 	emacs_abort ();
@@ -3197,7 +3197,7 @@ init_environment (char ** argv)
   {
     static char modname[MAX_PATH];
 
-    if (!GetModuleFileNameA (NULL, modname, MAX_PATH))
+    if (!w32_module_file_name (modname, MAX_PATH))
       emacs_abort ();
     argv[0] = modname;
   }
@@ -10799,7 +10799,7 @@ w32_relocate (const char *epath_dir)
 	 our binary lives.  Note that init_environment was not yet
 	 called, so we cannot rely on emacs_dir being set in the
 	 environment.  */
-      if (GetModuleFileNameA (NULL, relocated_dir, MAX_PATH))
+      if (w32_module_file_name (relocated_dir, MAX_PATH))
 	{
 	  char *p = _mbsrchr (relocated_dir, '\\');
 
@@ -10817,6 +10817,25 @@ w32_relocate (const char *epath_dir)
   return epath_dir;
 }
 
+/* Fill BUF, of SIZE bytes, with the file name of the module Emacs's
+   own code lives in, and return its length, as GetModuleFileName
+   does.  That is emacs.exe, or libemacs.dll when a host application
+   loads Emacs as a DLL; either way Emacs finds its installation next
+   to it, and not next to the executable that happens to run.  */
+DWORD
+w32_module_file_name (char *buf, DWORD size)
+{
+  HMODULE hmod;
+
+  /* The module is the one this very function is in.  */
+  if (!GetModuleHandleExA (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+			   | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+			   (LPCSTR) &w32_module_file_name, &hmod))
+    return 0;
+
+  return GetModuleFileNameA (hmod, buf, size);
+}
+
 /* Return the full absolute name of the running executable.  If the
    executable is a symlink, resolve it.
 
@@ -10827,7 +10846,7 @@ char *
 w32_my_exename (void)
 {
   static char exename[MAX_PATH];
-  if (!GetModuleFileNameA (NULL, exename, MAX_PATH))
+  if (!w32_module_file_name (exename, MAX_PATH))
     return NULL;
   /* The caller expects us to resolve all possible symlinks in the
      last component of exename, i.e. if the executable itself is a

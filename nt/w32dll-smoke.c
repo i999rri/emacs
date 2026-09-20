@@ -31,6 +31,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef int (*w32_emacs_init_fn) (int, char **);
 
@@ -53,10 +54,17 @@ run_emacs (LPVOID param)
 int
 main (int argc, char **argv)
 {
-  HMODULE dll = LoadLibraryA ("libemacs.dll");
+  /* A real host sits in its own installation, away from Emacs, so let
+     EMACS_DLL say where the DLL is and test that case too.  */
+  const char *dll_name = getenv ("EMACS_DLL");
+  if (!dll_name)
+    dll_name = "libemacs.dll";
+
+  HMODULE dll = LoadLibraryA (dll_name);
   if (!dll)
     {
-      fprintf (stderr, "cannot load libemacs.dll: error %lu\n", GetLastError ());
+      fprintf (stderr, "cannot load %s: error %lu\n", dll_name,
+	       GetLastError ());
       return 1;
     }
 
