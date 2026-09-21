@@ -118,6 +118,9 @@ is a plist:
   :y       where it is, in pixels below the top of WINDOW
   :height  how tall it is
   :ascent  how far its baseline is below its top
+  :line-spacing        how much of the height is space between lines
+  :line-spacing-above  how much of that space is above the text; the
+                       rest is below it
   :kind    `text', `mode-line', `header-line' or `tab-line'
   :start   where in the buffer it begins, or nil if it is not text
   :runs    what is on it
@@ -216,6 +219,9 @@ drawn WINDOW yet.  */)
       lines = Fcons (list (QCy, make_fixnum (row->y),
 			   QCheight, make_fixnum (row->height),
 			   QCascent, make_fixnum (row->ascent),
+			   QCline_spacing, make_fixnum (row->extra_line_spacing),
+			   QCline_spacing_above,
+			   make_fixnum (row->extra_line_spacing_above),
 			   QCkind, host_row_kind (matrix, row),
 			   /* Which line of the buffer this is, so that
 			      one that has only scrolled is known to be
@@ -282,6 +288,8 @@ syms_of_hostscreen (void)
   DEFSYM (QCruns, ":runs");
   DEFSYM (QCkind, ":kind");
   DEFSYM (QCstart, ":start");
+  DEFSYM (QCline_spacing, ":line-spacing");
+  DEFSYM (QCline_spacing_above, ":line-spacing-above");
 
   defsubr (&Swindow_screen_rows);
   defsubr (&Swindow_screen_cursor);
