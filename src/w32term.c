@@ -3373,6 +3373,25 @@ w32_detect_focus_change (struct w32_display_info *dpyinfo, W32Msg *event,
   if (! frame)
     return;
 
+  /* The host tells a frame it draws about the focus through the root
+     frame's window, as it sends its keys.  While the root sends its
+     keys on to another frame, a floating minibuffer for one, the focus
+     is that frame's too: taking it as the root's would switch Emacs to
+     the root when the window comes back, away from the minibuffer that
+     was being typed in.  Losing the focus is losing it from whichever
+     frame has it, which is where the keys went until then.  */
+  if (w32_host_drawn (frame))
+    {
+      struct frame *focused = dpyinfo->w32_focus_event_frame;
+      Lisp_Object focus = FRAME_FOCUS_FRAME (frame);
+
+      if (event->msg.message == WM_KILLFOCUS
+	  && focused && w32_host_drawn (focused))
+	frame = focused;
+      else if (FRAMEP (focus) && FRAME_LIVE_P (XFRAME (focus)))
+	frame = XFRAME (focus);
+    }
+
   /* On w32, this is only called from focus events, so no switch needed.  */
   w32_focus_changed (event->msg.message,
                      (event->msg.message == WM_KILLFOCUS ?
