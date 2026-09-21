@@ -2040,6 +2040,22 @@ reader_thread (void *arg)
    Note that this directory's name is UTF-8 encoded.  */
 static char * process_dir;
 
+/* The standard handles the next child is started with, which
+   prepare_standard_handles makes and reset_standard_handles closes.
+
+   They go to the child in its startup information.  Putting them in
+   this process's own standard handles for the moment it is started,
+   and having it pick them up from there, is not the same thing: a
+   process can be started with something other than a handle in the
+   place its standard output is kept -- the monitor to open its window
+   on, when the shell starts it -- and then asking for its standard
+   output answers nothing, whatever was put there.  The child was
+   started without one, and the handle meant for it was never closed,
+   so whatever waited for the end of the child's output waited
+   forever.  */
+static HANDLE child_std_handles[3];
+static bool child_std_handles_ready;
+
 static BOOL
 create_child (char *exe, char *cmdline, char *env, int is_gui_app,
 	      pid_t * pPid, child_process *cp)
@@ -2066,9 +2082,18 @@ create_child (char *exe, char *cmdline, char *env, int is_gui_app,
     start.dwFlags = STARTF_USESTDHANDLES;
   start.wShowWindow = SW_HIDE;
 
-  start.hStdInput = GetStdHandle (STD_INPUT_HANDLE);
-  start.hStdOutput = GetStdHandle (STD_OUTPUT_HANDLE);
-  start.hStdError = GetStdHandle (STD_ERROR_HANDLE);
+  if (child_std_handles_ready)
+    {
+      start.hStdInput = child_std_handles[0];
+      start.hStdOutput = child_std_handles[1];
+      start.hStdError = child_std_handles[2];
+    }
+  else
+    {
+      start.hStdInput = GetStdHandle (STD_INPUT_HANDLE);
+      start.hStdOutput = GetStdHandle (STD_OUTPUT_HANDLE);
+      start.hStdError = GetStdHandle (STD_ERROR_HANDLE);
+    }
 #endif /* HAVE_NTGUI */
 
 #if 0
@@ -3744,34 +3769,24 @@ sys_kill (pid_t pid, int sig)
    Assuming that in, out, and err are *not* inheritable, we make them
    stdin, stdout, and stderr of the child as follows:
 
-   - Save the parent's current standard handles.
-   - Set the std handles to inheritable duplicates of the ones being passed in.
+   - Make inheritable duplicates of the ones being passed in, in HANDLES.
      (Note that _get_osfhandle() is an io.h procedure that retrieves the
      NT file handle for a crt file descriptor.)
-   - Spawn the child, which inherits in, out, and err as stdin,
-     stdout, and stderr. (see Spawnve)
-   - Close the std handles passed to the child.
-   - Reset the parent's standard handles to the saved handles.
-     (see reset_standard_handles)
+   - Spawn the child, which is given them as its stdin, stdout, and
+     stderr in its startup information.  (see create_child)
+   - Close the duplicates. (see reset_standard_handles)
    We assume that the caller closes in, out, and err after calling us.  */
 
 void
 prepare_standard_handles (int in, int out, int err, HANDLE handles[3])
 {
-  HANDLE parent;
-  HANDLE newstdin, newstdout, newstderr;
-
-  parent = GetCurrentProcess ();
-
-  handles[0] = GetStdHandle (STD_INPUT_HANDLE);
-  handles[1] = GetStdHandle (STD_OUTPUT_HANDLE);
-  handles[2] = GetStdHandle (STD_ERROR_HANDLE);
+  HANDLE parent = GetCurrentProcess ();
 
   /* make inheritable copies of the new handles */
   if (!DuplicateHandle (parent,
 		       (HANDLE) _get_osfhandle (in),
 		       parent,
-		       &newstdin,
+		       &handles[0],
 		       0,
 		       TRUE,
 		       DUPLICATE_SAME_ACCESS))
@@ -3780,7 +3795,7 @@ prepare_standard_handles (int in, int out, int err, HANDLE handles[3])
   if (!DuplicateHandle (parent,
 		       (HANDLE) _get_osfhandle (out),
 		       parent,
-		       &newstdout,
+		       &handles[1],
 		       0,
 		       TRUE,
 		       DUPLICATE_SAME_ACCESS))
@@ -3789,35 +3804,26 @@ prepare_standard_handles (int in, int out, int err, HANDLE handles[3])
   if (!DuplicateHandle (parent,
 		       (HANDLE) _get_osfhandle (err),
 		       parent,
-		       &newstderr,
+		       &handles[2],
 		       0,
 		       TRUE,
 		       DUPLICATE_SAME_ACCESS))
     report_file_error ("Duplicating error handle for child", Qnil);
 
-  /* and store them as our std handles */
-  if (!SetStdHandle (STD_INPUT_HANDLE, newstdin))
-    report_file_error ("Changing stdin handle", Qnil);
-
-  if (!SetStdHandle (STD_OUTPUT_HANDLE, newstdout))
-    report_file_error ("Changing stdout handle", Qnil);
-
-  if (!SetStdHandle (STD_ERROR_HANDLE, newstderr))
-    report_file_error ("Changing stderr handle", Qnil);
+  /* and have the next child started with them */
+  memcpy (child_std_handles, handles, sizeof child_std_handles);
+  child_std_handles_ready = true;
 }
 
 void
 reset_standard_handles (int in, int out, int err, HANDLE handles[3])
 {
-  /* close the duplicated handles passed to the child */
-  CloseHandle (GetStdHandle (STD_INPUT_HANDLE));
-  CloseHandle (GetStdHandle (STD_OUTPUT_HANDLE));
-  CloseHandle (GetStdHandle (STD_ERROR_HANDLE));
+  child_std_handles_ready = false;
 
-  /* now restore parent's saved std handles */
-  SetStdHandle (STD_INPUT_HANDLE, handles[0]);
-  SetStdHandle (STD_OUTPUT_HANDLE, handles[1]);
-  SetStdHandle (STD_ERROR_HANDLE, handles[2]);
+  /* close the duplicated handles passed to the child */
+  CloseHandle (handles[0]);
+  CloseHandle (handles[1]);
+  CloseHandle (handles[2]);
 }
 
 void
