@@ -35,8 +35,7 @@ extern BOOL ctrl_c_handler (unsigned long);
 
 __declspec (dllexport) int w32_emacs_init (int, char **);
 
-/* Give Emacs the standard stream WHICH as file descriptor FD, opened
-   with FLAGS.
+/* Give Emacs HANDLE as file descriptor FD, opened with FLAGS.
 
    A host application has no console, so the C runtime Emacs is linked
    against started with nothing at descriptors 0, 1 and 2: what Emacs
@@ -48,18 +47,11 @@ __declspec (dllexport) int w32_emacs_init (int, char **);
 
    The handle is duplicated because the descriptor owns what it is
    given: closing it would close the host's, and the host goes on using
-   it after Emacs has finished with it.
-
-   The standard handle itself is then cleared, leaving the process as a
-   windowed program that was started from no console is left: that is
-   what emacs.exe runs as, and what a process holds there is what it
-   hands to the programs it runs.  Leaving the host's pipe there would
-   hand every program a pipe nobody reads on its behalf.  */
+   it after Emacs has finished with it.  */
 
 static void
-open_standard_stream (DWORD which, int fd, int flags)
+open_standard_stream (HANDLE handle, int fd, int flags)
 {
-  HANDLE handle = GetStdHandle (which);
   HANDLE own;
   int opened;
 
@@ -83,8 +75,6 @@ open_standard_stream (DWORD which, int fd, int flags)
       _dup2 (opened, fd);
       _close (opened);
     }
-
-  SetStdHandle (which, NULL);
 }
 
 int
@@ -102,11 +92,29 @@ w32_emacs_init (int argc, char **argv)
 
   cache_system_info ();
 
-  /* Before anything of Emacs runs: what Emacs says, and what it hands
-     to the programs it runs, both go through these.  */
-  open_standard_stream (STD_INPUT_HANDLE, 0, _O_RDONLY | _O_BINARY);
-  open_standard_stream (STD_OUTPUT_HANDLE, 1, _O_WRONLY | _O_BINARY);
-  open_standard_stream (STD_ERROR_HANDLE, 2, _O_WRONLY | _O_BINARY);
+  /* Before anything of Emacs runs, since what Emacs says goes through
+     these.
+
+     Standard output is taken from standard error when it cannot be
+     read: a process the shell starts can have the monitor to open its
+     window on kept where its standard output would be, and then asking
+     for it answers nothing whatever was put there (see create_child).
+     Standard error is never used that way, and the host puts the same
+     pipe in both.  */
+  HANDLE input = GetStdHandle (STD_INPUT_HANDLE);
+  HANDLE output = GetStdHandle (STD_OUTPUT_HANDLE);
+  HANDLE error = GetStdHandle (STD_ERROR_HANDLE);
+
+  open_standard_stream (input, 0, _O_RDONLY | _O_BINARY);
+  open_standard_stream (output ? output : error, 1, _O_WRONLY | _O_BINARY);
+  open_standard_stream (error, 2, _O_WRONLY | _O_BINARY);
+
+  /* And the process is left with the standard handles emacs.exe has,
+     which is to say none: the host's are Emacs's descriptors now, and
+     have no business being handed on to anything else.  */
+  SetStdHandle (STD_INPUT_HANDLE, NULL);
+  SetStdHandle (STD_OUTPUT_HANDLE, NULL);
+  SetStdHandle (STD_ERROR_HANDLE, NULL);
 
   /* Keep Ctrl-C in the console from ending the process, and do not let
      a missing removable drive stop Emacs with a system dialog.  Both
