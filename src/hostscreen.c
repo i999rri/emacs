@@ -70,8 +70,8 @@ host_run_face (struct frame *f, int face_id)
 
 /* One run of text drawn at X, WIDTH pixels wide, in the face FACE_ID.
    TEXT is NULL for a run that is a blank of that width, which is what
-   a stretch of space, an image, or a character with no glyph comes to
-   until there is something better to do with them.  */
+   a stretch of space or a character with no glyph comes to until there
+   is something better to do with them.  */
 
 static Lisp_Object
 host_run (struct frame *f, int face_id, int x, int width,
@@ -83,6 +83,27 @@ host_run (struct frame *f, int face_id, int x, int width,
 		       QCx, make_fixnum (x),
 		       QCwidth, make_fixnum (width)),
 		 host_run_face (f, face_id));
+}
+
+/* The image GLYPH shows, as a run of its own: the image's spec, which
+   says where its data is, and how far its top is above the baseline
+   and how tall it is, which say where on the line it goes.  */
+
+static Lisp_Object
+host_image_run (struct frame *f, struct glyph *glyph, int x)
+{
+  Lisp_Object run = host_run (f, glyph->face_id, x, glyph->pixel_width,
+			      NULL, 0, 0);
+#ifdef HAVE_WINDOW_SYSTEM
+  struct image *img = IMAGE_OPT_FROM_ID (f, glyph->u.img_id);
+
+  if (img)
+    run = nconc2 (run, list (QCimage, img->spec,
+			     QCascent, make_fixnum (glyph->ascent),
+			     QCheight, make_fixnum (glyph->ascent
+						    + glyph->descent)));
+#endif
+  return run;
 }
 
 /* What kind of line ROW is, the Ith of MATRIX.  The mode line and the
@@ -129,8 +150,11 @@ Each run is a plist of :text, :x and :width, followed by the face it was
 drawn in as :foreground, :background, :weight, :slant, :underline,
 :family and :size.  X and Y both count from the top left corner of
 WINDOW.  A run whose :text is nil is a blank that wide, which is what a
-stretch of space, an image, or a character the font has no glyph for
-comes to.
+stretch of space or a character the font has no glyph for comes to.
+
+An image is a run of its own, with :image, the spec it was made from,
+and :ascent and :height, how far its top is above the baseline and how
+tall it is.
 
 WINDOW defaults to the selected one.  The value is nil if Emacs has not
 drawn WINDOW yet.  */)
@@ -187,6 +211,15 @@ drawn WINDOW yet.  */)
 	{
 	  int face_id = glyphs[start].face_id;
 	  bool texts = glyphs[start].type == CHAR_GLYPH;
+
+	  if (glyphs[start].type == IMAGE_GLYPH)
+	    {
+	      runs = Fcons (host_image_run (f, &glyphs[start], x), runs);
+	      x += glyphs[start].pixel_width;
+	      start++;
+	      continue;
+	    }
+
 	  short advance = glyphs[start].pixel_width;
 	  ptrdiff_t nchars = 0, nbytes = 0;
 	  int width = 0;
@@ -194,6 +227,7 @@ drawn WINDOW yet.  */)
 
 	  while (end < used
 		 && glyphs[end].face_id == face_id
+		 && glyphs[end].type != IMAGE_GLYPH
 		 && (glyphs[end].type == CHAR_GLYPH) == texts
 		 && (!texts || glyphs[end].pixel_width == advance))
 	    {
