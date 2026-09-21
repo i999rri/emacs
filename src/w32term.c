@@ -3934,12 +3934,38 @@ w32_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
       POINT pt;
       Lisp_Object frame, tail;
       struct frame *f1 = NULL;
+      struct frame *motion = dpyinfo->last_mouse_motion_frame;
 
       /* Clear the mouse-moved flag for every frame on this display.  */
       FOR_EACH_FRAME (tail, frame)
 	XFRAME (frame)->mouse_moved = false;
 
       dpyinfo->last_mouse_scroll_bar = NULL;
+
+      /* A frame the host draws is where the host says the mouse is: its
+	 window is on no screen, so where the pointer is on the screen
+	 says nothing about where it is on the frame.  The host sends
+	 where it is with every move, and a drag that has left the frame
+	 is somewhere to the left of it or above it, which is to say at
+	 a place less than nothing.  */
+      if (motion && FRAME_LIVE_P (motion) && w32_host_drawn (motion))
+	{
+	  int mouse_x = (short) dpyinfo->last_mouse_motion_x;
+	  int mouse_y = (short) dpyinfo->last_mouse_motion_y;
+
+	  f1 = motion;
+	  remember_mouse_glyph (f1, mouse_x, mouse_y, &dpyinfo->last_mouse_glyph);
+	  dpyinfo->last_mouse_glyph_frame = f1;
+
+	  *bar_window = Qnil;
+	  *part = scroll_bar_above_handle;
+	  *fp = f1;
+	  XSETINT (*x, mouse_x);
+	  XSETINT (*y, mouse_y);
+	  *time = dpyinfo->last_mouse_movement_time;
+	  unblock_input ();
+	  return;
+	}
 
       GetCursorPos (&pt);
 
