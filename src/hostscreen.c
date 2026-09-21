@@ -277,7 +277,9 @@ DEFUN ("window-screen-cursor", Fwindow_screen_cursor, Swindow_screen_cursor,
 
 The value is a plist of :x, :y, :width and :height, in the pixels and
 from the corner `window-screen-rows' counts in, or nil if the cursor
-is not in WINDOW.
+is not in WINDOW.  :height is the whole line's, and :line-spacing and
+:line-spacing-above say how much of it is space between lines, as they
+do for a row, for a cursor as tall as the text and not the line.
 
 WINDOW defaults to the selected one.  */)
   (Lisp_Object window)
@@ -310,7 +312,10 @@ WINDOW defaults to the selected one.  */)
 				 + window_box_left_offset (w, TEXT_AREA)),
 	       QCy, make_fixnum (w->cursor.y),
 	       QCwidth, make_fixnum (width),
-	       QCheight, make_fixnum (row->height));
+	       QCheight, make_fixnum (row->height),
+	       QCline_spacing, make_fixnum (row->extra_line_spacing),
+	       QCline_spacing_above,
+	       make_fixnum (row->extra_line_spacing_above));
 }
 
 void
