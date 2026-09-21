@@ -7435,6 +7435,25 @@ w32_focus_frame (struct frame *f, bool noactivate)
   struct w32_display_info *dpyinfo = &one_w32_display_info;
 #endif
 
+  /* A frame the host draws is not given the focus by Windows: the
+     window the host passes keys from is the root frame's, and that is
+     where the keys arrive.  They are sent on to this frame instead, the
+     way the keys of a frame with no minibuffer are sent to the frame
+     its minibuffer is on, and Emacs reads them as this frame's without
+     switching frames to do it.  */
+  if (w32_host_drawn (f))
+    {
+      struct frame *root = f;
+      Lisp_Object root_frame, focus;
+
+      while (FRAME_PARENT_FRAME (root))
+	root = FRAME_PARENT_FRAME (root);
+      XSETFRAME (root_frame, root);
+      XSETFRAME (focus, f);
+      Fredirect_frame_focus (root_frame, root == f ? Qnil : focus);
+      return;
+    }
+
   /* Give input focus to frame.  */
   block_input ();
 #if 0

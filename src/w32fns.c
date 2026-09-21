@@ -2726,6 +2726,13 @@ w32_createwindow (struct frame *f, int *coords)
       parent_hwnd = FRAME_W32_WINDOW (FRAME_PARENT_FRAME (f));
       f->output_data.w32->dwStyle = WS_CHILD | WS_CLIPSIBLINGS;
 
+      /* A frame inside one the host draws is drawn by the host too, over
+	 its parent.  Its window is inside its parent's, which is on no
+	 screen, so it would never be shown, and a frame Emacs thinks is
+	 not shown is one it does not lay out.  */
+      if (FRAME_PARENT_FRAME (f)->output_data.w32->host_drawn)
+	f->output_data.w32->host_drawn = 1;
+
       if (FRAME_UNDECORATED (f))
 	{
 	  /* If we want a thin border, specify it here.  */
@@ -2870,8 +2877,9 @@ w32_createwindow (struct frame *f, int *coords)
       f->top_pos = rect.top;
 
       /* The host sends this frame its input, and cannot until it knows
-	 which window to send it to.  */
-      if (f->output_data.w32->host_drawn)
+	 which window to send it to.  A child frame is not told about:
+	 the host has one window, and the frame it shows is the root.  */
+      if (f->output_data.w32->host_drawn && !FRAME_PARENT_FRAME (f))
 	w32_host_frame_created (hwnd);
     }
 }
