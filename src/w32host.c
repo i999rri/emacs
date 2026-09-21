@@ -23,7 +23,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "coding.h"
+#include "frame.h"
 #include "w32common.h"
+#include "w32term.h"
 #include "w32host.h"
 
 /* The host's interface, or null when Emacs runs on its own.  */
@@ -111,6 +113,16 @@ HWND
 w32_host_window (void)
 {
   return host_api ? (HWND) host_api->window () : NULL;
+}
+
+HWND
+w32_dialog_owner (struct frame *f)
+{
+  HWND host = w32_host_window ();
+
+  if (host && FRAME_W32_P (f) && f->output_data.w32->host_drawn)
+    return host;
+  return FRAME_W32_WINDOW (f);
 }
 
 void

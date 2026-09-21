@@ -69,6 +69,14 @@ extern void syms_of_w32host (void);
    own windows, which is whenever there is no host.  */
 extern HWND w32_host_window (void);
 
+/* The window a dialog for frame F is to belong to.  A dialog stays
+   in front of the window it belongs to and keeps it from being used
+   until it is answered; a frame the host draws has a window nobody
+   sees, and a dialog that belonged to it would open behind whatever
+   the person was looking at, with nothing to say it was waiting.  */
+struct frame;
+extern HWND w32_dialog_owner (struct frame *);
+
 /* Tell the host about a frame's window, once it has been made.  */
 extern void w32_host_frame_created (HWND);
 

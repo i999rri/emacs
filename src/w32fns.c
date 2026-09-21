@@ -8439,7 +8439,7 @@ DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
 	/* Set up the inout parameter for the selected file name.  */
 	file_details_w->lpstrFile = filename_buf_w;
 	file_details_w->nMaxFile = ARRAYELTS (filename_buf_w);
-	file_details_w->hwndOwner = FRAME_W32_WINDOW (f);
+	file_details_w->hwndOwner = w32_dialog_owner (f);
 	/* Undocumented Bug in Common File Dialog:
 	   If a filter is not specified, shell links are not resolved.  */
 	file_details_w->lpstrFilter = filter_w;
@@ -8472,7 +8472,7 @@ DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
 	  file_details_a->lStructSize = sizeof (*file_details_a);
 	file_details_a->lpstrFile = filename_buf_a;
 	file_details_a->nMaxFile = ARRAYELTS (filename_buf_a);
-	file_details_a->hwndOwner = FRAME_W32_WINDOW (f);
+	file_details_a->hwndOwner = w32_dialog_owner (f);
 	file_details_a->lpstrFilter = filter_a;
 	file_details_a->lpstrInitialDir = dir_a;
 	file_details_a->lpstrTitle = prompt_a;
