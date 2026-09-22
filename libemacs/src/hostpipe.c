@@ -181,12 +181,15 @@ host_pipe_api (void)
     return NULL;
 
 #ifdef WINDOWSNT
-  /* Duplicated, so that Emacs closing or replacing its standard
-     handles later leaves these alone.  */
-  if (!DuplicateHandle (GetCurrentProcess (), GetStdHandle (STD_INPUT_HANDLE),
+  /* From the descriptors, not GetStdHandle: init_ntproc has closed the
+     handles the process started with and opened copies of them as
+     descriptors 0 and 1, so what GetStdHandle still says is a handle
+     that is gone, or by now another one.  Duplicated, so that Emacs
+     closing or replacing the descriptors later leaves these alone.  */
+  if (!DuplicateHandle (GetCurrentProcess (), (HANDLE) _get_osfhandle (0),
 			GetCurrentProcess (), &pipe_in, 0, FALSE,
 			DUPLICATE_SAME_ACCESS)
-      || !DuplicateHandle (GetCurrentProcess (), GetStdHandle (STD_OUTPUT_HANDLE),
+      || !DuplicateHandle (GetCurrentProcess (), (HANDLE) _get_osfhandle (1),
 			   GetCurrentProcess (), &pipe_out, 0, FALSE,
 			   DUPLICATE_SAME_ACCESS))
     return NULL;
