@@ -35,8 +35,10 @@ abs_top_srcdir=@abs_top_srcdir@
 VPATH = $(srcdir)
 
 ## What libemacs adds to Emacs is kept apart from Emacs's own sources,
-## in libemacs/src, and found there as if it were here.
+## in libemacs/src, and found there as if it were here.  Its objects
+## that every system has; configure adds those of one system alone.
 libemacssrc = $(top_srcdir)/libemacs/src
+LIBEMACS_BASE_OBJ = host.o hostpipe.o hostscreen.o
 vpath %.c $(libemacssrc)
 vpath %.h $(libemacssrc)
 
@@ -472,7 +474,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	itree.o json.o 							       \
 	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ)        \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
-	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ)
+	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ) $(LIBEMACS_BASE_OBJ)
 doc_obj = $(base_obj) $(NS_OBJC_OBJ)
 obj = $(doc_obj) $(HAIKU_CXX_OBJ)
 
@@ -486,7 +488,7 @@ SOME_MACHINE_OBJECTS = dosfns.o msdos.o \
   nsterm.o nsfns.o nsmenu.o nsselect.o nsimage.o nsfont.o macfont.o \
   nsxwidget.o \
   w32.o w32console.o w32cygwinx.o w32fns.o w32heap.o w32inevt.o w32notify.o \
-  w32host.o hostpipe.o hostscreen.o w32menu.o w32proc.o w32reg.o w32select.o w32start.o w32term.o \
+  w32host.o w32menu.o w32proc.o w32reg.o w32select.o w32start.o w32term.o \
   w32xfns.o \
   w16select.o widget.o xfont.o ftfont.o xftfont.o gtkutil.o \
   xsettings.o xgselect.o termcap.o hbfont.o \
@@ -670,7 +672,7 @@ endif
 ## make-docfile finds a source from its object's name in $(srcdir), so
 ## the objects whose sources are in libemacs/src are named to it with
 ## the way there.
-LIBEMACS_OBJ = w32host.o hostpipe.o hostscreen.o w32dll.o w32start.o
+LIBEMACS_OBJ = $(LIBEMACS_BASE_OBJ) w32host.o w32dll.o w32start.o
 docfile_names = $(foreach o,$(1),$(if $(filter $(o),$(LIBEMACS_OBJ)),../libemacs/src/$(o),$(o)))
 
 $(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj)

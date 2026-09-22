@@ -35,6 +35,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "dispextern.h"
 #include "font.h"
+#include "hostlib.h"
 
 /* The face a run was drawn in, as the attributes that decide how it
    looks.  The family and the size are of the font redisplay settled

@@ -28,10 +28,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "host.h"
 
-/* Ask the host for its interface.  Does nothing if there is no host.  */
-extern void init_w32host (void);
-extern void syms_of_w32host (void);
-
 /* The window the host wants frames in, or null when Emacs makes its
    own windows, which is whenever there is no host.  */
 extern HWND w32_host_window (void);

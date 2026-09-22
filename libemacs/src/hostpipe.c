@@ -39,6 +39,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "systhread.h"
+#include "hostlib.h"
 #include "hostpipe.h"
 
 /* The two ends, taken from Emacs's standard input and output as Emacs
@@ -53,39 +54,6 @@ static int pipe_out = -1;
 
 static host_event_fn event_fn;
 static void *event_data;
-
-/* Memory for the thread that reads: not Emacs's own, which belongs to
-   Emacs's thread.  */
-static void *
-pipe_alloc (size_t size)
-{
-#ifdef WINDOWSNT
-  return HeapAlloc (GetProcessHeap (), 0, size);
-#else
-  return malloc (size);
-#endif
-}
-
-static void *
-pipe_realloc (void *block, size_t size)
-{
-#ifdef WINDOWSNT
-  return block ? HeapReAlloc (GetProcessHeap (), 0, block, size)
-	       : HeapAlloc (GetProcessHeap (), 0, size);
-#else
-  return realloc (block, size);
-#endif
-}
-
-static void
-pipe_free (void *block)
-{
-#ifdef WINDOWSNT
-  HeapFree (GetProcessHeap (), 0, block);
-#else
-  free (block);
-#endif
-}
 
 /* Read up to SIZE bytes into BUFFER.  Return how many, or 0 at the end
    of the input or on an error: the host has gone either way.  */
@@ -135,7 +103,7 @@ static void *
 read_lines (void *arg)
 {
   size_t size = 4096, used = 0;
-  char *line = pipe_alloc (size);
+  char *line = host_alloc (size);
   char chunk[4096];
 
   if (!line)
@@ -164,11 +132,11 @@ read_lines (void *arg)
 
 	  if (used + 1 >= size)
 	    {
-	      char *bigger = pipe_realloc (line, size * 2);
+	      char *bigger = host_realloc (line, size * 2);
 
 	      if (!bigger)
 		{
-		  pipe_free (line);
+		  host_free (line);
 		  return NULL;
 		}
 	      line = bigger;
@@ -178,7 +146,7 @@ read_lines (void *arg)
 	}
     }
 
-  pipe_free (line);
+  host_free (line);
   return NULL;
 }
 

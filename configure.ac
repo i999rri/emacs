@@ -3082,7 +3082,7 @@ if test "${HAVE_W32}" = "yes"; then
     W32_RES_LINK="-Wl,emacs.res"
   else
     W32_OBJ="$W32_OBJ w32.o w32console.o w32heap.o w32image.o w32inevt.o w32proc.o"
-    W32_OBJ="$W32_OBJ w32start.o w32host.o hostpipe.o hostscreen.o"
+    W32_OBJ="$W32_OBJ w32start.o w32host.o"
     dnl FIXME: This should probably be supported for Cygwin/w32 as
     dnl well, but the Cygwin build needs to link against -lgdiplus
     if test "${with_native_image_api}" = yes; then
