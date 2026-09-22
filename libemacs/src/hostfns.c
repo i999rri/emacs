@@ -227,6 +227,36 @@ host_explicitly_set_name (struct frame *f, Lisp_Object arg,
   host_set_name (f, arg, true);
 }
 
+/* Make frame F a child of NEW_VALUE, a host frame, or a root frame
+   again if it is nil.  A child frame is drawn by the host over its
+   parent, at its `left' and `top' within it; there is no window to
+   reparent, only the frame's parent to change and the screen to draw
+   again.  */
+
+static void
+host_set_parent_frame (struct frame *f, Lisp_Object new_value,
+		       Lisp_Object old_value)
+{
+  if (!NILP (new_value)
+      && (!FRAMEP (new_value)
+	  || !FRAME_LIVE_P (XFRAME (new_value))
+	  || !FRAME_HOST_P (XFRAME (new_value))))
+    {
+      store_frame_param (f, Qparent_frame, old_value);
+      error ("Invalid specification of `parent-frame'");
+    }
+
+  if (EQ (new_value, old_value))
+    return;
+
+  fset_parent_frame (f, new_value);
+  fset_redisplay (f);
+  if (FRAMEP (old_value) && FRAME_LIVE_P (XFRAME (old_value)))
+    fset_redisplay (XFRAME (old_value));
+  if (!NILP (new_value))
+    fset_redisplay (XFRAME (new_value));
+}
+
 static void
 host_set_title (struct frame *f, Lisp_Object name, Lisp_Object old_name)
 {
@@ -284,7 +314,7 @@ frame_parm_handler host_frame_parm_handlers[] =
     NULL, /* tool-bar-position */
     NULL, /* inhibit-double-buffering */
     NULL, /* undecorated */
-    NULL, /* parent-frame; TODO, child frames */
+    host_set_parent_frame,
     NULL, /* skip-taskbar */
     NULL, /* no-focus-on-map */
     NULL, /* no-accept-focus */
@@ -370,6 +400,20 @@ Return the frame.  PARMS is an alist of frame parameters.  */)
 
   XSETFRAME (frame, f);
   frame_set_id_from_params (f, parms);
+
+  /* A child frame is drawn over its parent, which has to be a frame of
+     the host's too.  */
+  {
+    Lisp_Object parent = gui_display_get_arg (dpyinfo, parms, Qparent_frame,
+					      NULL, NULL, RES_TYPE_SYMBOL);
+
+    if (BASE_EQ (parent, Qunbound) || !FRAMEP (parent)
+	|| !FRAME_LIVE_P (XFRAME (parent)) || !FRAME_HOST_P (XFRAME (parent)))
+      parent = Qnil;
+
+    fset_parent_frame (f, parent);
+    store_frame_param (f, Qparent_frame, parent);
+  }
 
   f->terminal = dpyinfo->terminal;
   f->output_method = output_host;

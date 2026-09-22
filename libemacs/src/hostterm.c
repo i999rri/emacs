@@ -186,6 +186,50 @@ host_set_window_size (struct frame *f, bool change_gravity,
   do_pending_window_change (false);
 }
 
+/* Put frame F at X, Y, as Lisp asked: within its parent for a child
+   frame, which is the only kind whose place means anything, since the
+   host puts the root frame where its window is.  There is no window to
+   move, so the place is the frame's own, and the host draws the frame
+   there the next time it is sent the screen.  */
+
+static void
+host_set_offset (struct frame *f, int x, int y, int change_gravity)
+{
+  if (change_gravity > 0)
+    {
+      f->left_pos = x;
+      f->top_pos = y;
+      f->size_hint_flags &= ~(XNegative | YNegative);
+      if (x < 0)
+	f->size_hint_flags |= XNegative;
+      if (y < 0)
+	f->size_hint_flags |= YNegative;
+      f->win_gravity = NorthWestGravity;
+    }
+
+  fset_redisplay (f);
+  if (FRAME_PARENT_FRAME (f))
+    fset_redisplay (FRAME_PARENT_FRAME (f));
+}
+
+/* Give frame F the keys, as `select-frame-set-input-focus' asks for a
+   child frame that takes input, a minibuffer that floats over the
+   frame for one.  The keys come from the host to the root frame, and
+   are sent on to F the way the keys of a frame with no minibuffer are
+   sent to the frame of its minibuffer, so that Emacs reads them as
+   F's without switching frames to do it.  */
+
+static void
+host_focus_frame (struct frame *f, bool noactivate)
+{
+  struct frame *root = root_frame (f);
+  Lisp_Object root_frame_object, focus;
+
+  XSETFRAME (root_frame_object, root);
+  XSETFRAME (focus, f);
+  Fredirect_frame_focus (root_frame_object, root == f ? Qnil : focus);
+}
+
 void
 host_set_frame_visible_invisible (struct frame *f, bool visible)
 {
@@ -389,6 +433,8 @@ host_create_terminal (struct host_display_info *dpyinfo)
   terminal->set_new_font_hook = host_new_font;
   terminal->set_window_size_hook = host_set_window_size;
   terminal->frame_visible_invisible_hook = host_set_frame_visible_invisible;
+  terminal->set_frame_offset_hook = host_set_offset;
+  terminal->focus_frame_hook = host_focus_frame;
   terminal->iconify_frame_hook = host_iconify_frame;
   terminal->delete_frame_hook = host_delete_frame;
   terminal->menu_show_hook = host_menu_show;
@@ -396,8 +442,9 @@ host_create_terminal (struct host_display_info *dpyinfo)
   terminal->mouse_position_hook = host_mouse_position;
   terminal->get_focus_frame = host_get_focus_frame;
   terminal->frame_rehighlight_hook = host_frame_rehighlight;
-  /* TODO: focus_frame_hook, to ask the host for the focus; the host
-     has it, and Emacs can only follow where it goes.  */
+  /* TODO: asking the host to bring its window to the front, which
+     focus_frame_hook does not: it only sends the keys on to a child
+     frame, since the host has the focus and Emacs follows it.  */
 
   return terminal;
 }
