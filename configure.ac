@@ -572,6 +572,7 @@ AC_ARG_WITH([ns],[AS_HELP_STRING([--with-ns],
 On by default on macOS.])],[],[with_ns=maybe])
 OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 OPTION_DEFAULT_OFF([pgtk], [use GTK to support window systems other than X])
+OPTION_DEFAULT_OFF([host], [have frames that a host application draws (libemacs)])
 
 OPTION_DEFAULT_ON([gpm],[don't use -lgpm for mouse support on a GNU/Linux console])
 OPTION_DEFAULT_IFAVAILABLE([dbus],[compile with D-Bus support])
@@ -2624,6 +2625,25 @@ ANDROID_BUILD_CFLAGS=
 REALLY_ANDROID=
 CM_OBJ="cm.o"
 
+dnl libemacs: frames with no window of their own, which a host
+dnl application draws (libemacs/src/hostterm.c).
+HOST_OBJ=
+AS_IF([test "$with_host" = "yes"],[
+  dnl A build has one window system, and host is it.
+  AS_IF([test "$with_pgtk" = "yes" || test "$with_ns" = "yes" \
+	 || test "$ANDROID" = "yes"],
+    [AC_MSG_ERROR([--with-host cannot be used with another window system])])
+  window_system=host
+  no_x=yes
+  with_x=no
+  dnl The fonts are the sfnt engine's, which reads font files itself
+  dnl and only measures here (sfntfont-host.c).
+  HOST_OBJ="hostterm.o hostfns.o sfnt.o sfntfont.o sfntfont-host.o"
+  AC_DEFINE([HAVE_HOST], [1], [Define to 1 if Emacs's frames are drawn
+by a host application (libemacs).])
+])
+AC_SUBST([HOST_OBJ])
+
 AS_IF([test "$ANDROID" = "yes"],[
   window_system=android
   no_x=yes
@@ -3211,6 +3231,9 @@ dnl use the toolkit if we have gtk, or X11R5 or newer.
   ;;
   haiku )
     term_header=haikuterm.h
+  ;;
+  host )
+    term_header=hostterm.h
   ;;
   android )
     term_header=androidterm.h

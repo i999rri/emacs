@@ -388,6 +388,8 @@ HAIKU_CXX_OBJ = @HAIKU_CXX_OBJ@
 HAIKU_LIBS = @HAIKU_LIBS@
 HAIKU_CFLAGS = @HAIKU_CFLAGS@
 
+HOST_OBJ = @HOST_OBJ@
+
 ANDROID_OBJ = @ANDROID_OBJ@
 ANDROID_LIBS = @ANDROID_LIBS@
 ANDROID_LDFLAGS = @ANDROID_LDFLAGS@
@@ -474,7 +476,8 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	itree.o json.o 							       \
 	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ)        \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
-	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ) $(LIBEMACS_BASE_OBJ)
+	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ) $(LIBEMACS_BASE_OBJ)	       \
+	$(HOST_OBJ)
 doc_obj = $(base_obj) $(NS_OBJC_OBJ)
 obj = $(doc_obj) $(HAIKU_CXX_OBJ)
 
@@ -672,7 +675,8 @@ endif
 ## make-docfile finds a source from its object's name in $(srcdir), so
 ## the objects whose sources are in libemacs/src are named to it with
 ## the way there.
-LIBEMACS_OBJ = $(LIBEMACS_BASE_OBJ) w32host.o w32dll.o w32start.o
+LIBEMACS_OBJ = $(LIBEMACS_BASE_OBJ) w32host.o w32dll.o w32start.o \
+  hostterm.o hostfns.o sfntfont-host.o
 docfile_names = $(foreach o,$(1),$(if $(filter $(o),$(LIBEMACS_OBJ)),../libemacs/src/$(o),$(o)))
 
 $(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj)
