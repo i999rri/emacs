@@ -36,6 +36,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "dispextern.h"
 #include "font.h"
 #include "sfntfont.h"
+#include "systime.h"
 
 /* An image, as pixels in memory.  Nothing draws it here; it is kept
    so that the host can be given it.  A pixmap and the image it was
@@ -90,6 +91,7 @@ struct host_display_info
   struct frame *last_mouse_motion_frame;
   int last_mouse_motion_x;
   int last_mouse_motion_y;
+  Time last_mouse_movement_time;
 
   Window root_window;
 
@@ -170,6 +172,15 @@ extern void syms_of_hostterm (void);
 extern unsigned long host_get_pixel (struct host_pixmap *, int, int);
 extern void host_put_pixel (struct host_pixmap *, int, int, unsigned long);
 extern void syms_of_hostfns (void);
+
+/* hostinput.c */
+extern void host_input_init (void);
+extern int host_read_socket (struct terminal *, struct input_event *);
+extern void host_mouse_position (struct frame **, int, Lisp_Object *,
+				 enum scroll_bar_part *, Lisp_Object *,
+				 Lisp_Object *, Time *);
+extern Lisp_Object host_get_focus_frame (struct frame *);
+extern void host_frame_rehighlight (struct frame *);
 
 /* sfntfont-host.c */
 extern const struct font_driver host_sfntfont_driver;

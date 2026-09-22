@@ -26,11 +26,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    system to get that far: the display, the frame's font and size,
    colors, and the hooks that may not be null.
 
-   TODO: input.  Keys, the pointer, the focus and the size are to be
-   read here, in a read_socket_hook, from the messages the host sends
-   (host.c keeps them), and made into events as each window system
-   makes its own.  Until then Lisp takes the messages (urusi.el) and
-   the hook is null.  */
+   The host's input is read in hostinput.c.  */
 
 #include <config.h>
 
@@ -389,10 +385,12 @@ host_create_terminal (struct host_display_info *dpyinfo)
   terminal->iconify_frame_hook = host_iconify_frame;
   terminal->delete_frame_hook = host_delete_frame;
   terminal->menu_show_hook = host_menu_show;
-
-  /* TODO: read_socket_hook, for input (see the top of this file),
-     and mouse_position_hook, focus_frame_hook and get_focus_frame
-     with it.  */
+  terminal->read_socket_hook = host_read_socket;
+  terminal->mouse_position_hook = host_mouse_position;
+  terminal->get_focus_frame = host_get_focus_frame;
+  terminal->frame_rehighlight_hook = host_frame_rehighlight;
+  /* TODO: focus_frame_hook, to ask the host for the focus; the host
+     has it, and Emacs can only follow where it goes.  */
 
   return terminal;
 }
@@ -439,6 +437,7 @@ host_term_init (void)
   terminal->name = xstrdup ("host");
 
   gui_init_fringe (terminal->rif);
+  host_input_init ();
   unblock_input ();
 
   host_enumerate_fonts ();
