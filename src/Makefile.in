@@ -34,6 +34,12 @@ top_builddir = @top_builddir@
 abs_top_srcdir=@abs_top_srcdir@
 VPATH = $(srcdir)
 
+## What libemacs adds to Emacs is kept apart from Emacs's own sources,
+## in libemacs/src, and found there as if it were here.
+libemacssrc = $(top_srcdir)/libemacs/src
+vpath %.c $(libemacssrc)
+vpath %.h $(libemacssrc)
+
 # Set these to 'not-set' when they are not set from top-level to please
 # 'load--fixup-all-elns' (bug#70842).
 ELN_DESTDIR=not-set
@@ -418,7 +424,7 @@ NON_CXX_CFLAGS = -Wmissing-prototypes -Wnested-externs -Wold-style-definition \
 # -Demacs makes some files produce the correct version for use in Emacs.
 # MYCPPFLAGS is for by-hand Emacs-specific overrides, e.g.,
 # "make MYCPPFLAGS='-DDBUS_DEBUG'".
-EMACS_CFLAGS=-Demacs $(MYCPPFLAGS) -I. -I$(srcdir) \
+EMACS_CFLAGS=-Demacs $(MYCPPFLAGS) -I. -I$(srcdir) -I$(libemacssrc) \
   -I$(lib) -I$(top_srcdir)/lib \
   $(C_SWITCH_MACHINE) $(C_SWITCH_SYSTEM) $(C_SWITCH_X_SITE) \
   $(GNUSTEP_CFLAGS) $(CFLAGS_SOUND) $(RSVG_CFLAGS) $(IMAGEMAGICK_CFLAGS) \
@@ -661,11 +667,17 @@ endif
 ## for the first time, this prevents any variation between configurations
 ## in the contents of the DOC file.
 ##
+## make-docfile finds a source from its object's name in $(srcdir), so
+## the objects whose sources are in libemacs/src are named to it with
+## the way there.
+LIBEMACS_OBJ = w32host.o hostscreen.o w32dll.o w32start.o
+docfile_names = $(foreach o,$(1),$(if $(filter $(o),$(LIBEMACS_OBJ)),../libemacs/src/$(o),$(o)))
+
 $(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj)
 	$(AM_V_GEN)$(MKDIR_P) $(etc)
 	$(AM_V_at)rm -f $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -d $(srcdir) \
-	  $(SOME_MACHINE_OBJECTS) $(doc_obj) > $(etc)/DOC
+	  $(call docfile_names,$(SOME_MACHINE_OBJECTS) $(doc_obj)) > $(etc)/DOC
 
 $(libsrc)/make-docfile$(EXEEXT) $(libsrc)/make-fingerprint$(EXEEXT): \
   $(hostlib)/libgnu.a
@@ -681,7 +693,7 @@ buildobj.h: Makefile
 GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m)
 
 gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
-	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(doc_obj) > globals.tmp
+	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(call docfile_names,$(doc_obj)) > globals.tmp
 	$(AM_V_at)$(top_srcdir)/build-aux/move-if-change globals.tmp globals.h
 	$(AM_V_at)echo timestamp > $@
 
