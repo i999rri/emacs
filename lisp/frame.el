@@ -2709,7 +2709,7 @@ frame's display)."
      ((eq frame-type 'w32)
       (with-no-warnings
        (> w32-num-mouse-buttons 0)))
-     ((memq frame-type '(x ns haiku pgtk))
+     ((memq frame-type '(x ns haiku pgtk host))
       t)    ;; We assume X, NeXTstep, GTK, and Haiku *always* have a pointing device
      ((eq frame-type 'android)
       (android-detect-mouse))
@@ -2795,7 +2795,7 @@ frame's display)."
 This means that, for example, DISPLAY can differentiate between
 the keybinding RET and [return]."
   (let ((frame-type (framep-on-display display)))
-    (or (memq frame-type '(x w32 ns pc pgtk haiku android))
+    (or (memq frame-type '(x w32 ns pc pgtk haiku android host))
         ;; MS-DOS and MS-Windows terminals have built-in support for
         ;; function (symbol) keys
         (memq system-type '(ms-dos windows-nt)))))
