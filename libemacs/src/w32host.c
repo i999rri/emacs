@@ -29,7 +29,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "w32host.h"
 
 /* The host's interface, or null when Emacs runs on its own.  */
-static const struct w32_host_api *host_api;
+static const struct host_api *host_api;
 
 /* Messages the host has sent and Lisp has not taken yet, oldest
    first.  The host writes them from a thread of its own, so
@@ -112,7 +112,7 @@ receive_host_event (void *data, const char *message)
 HWND
 w32_host_window (void)
 {
-  return host_api ? (HWND) host_api->window () : NULL;
+  return host_api && host_api->window ? (HWND) host_api->window () : NULL;
 }
 
 HWND
@@ -140,7 +140,7 @@ w32_host_frame_created (HWND window)
   host_api->post (message);
 }
 
-DEFUN ("w32-host-available-p", Fw32_host_available_p, Sw32_host_available_p,
+DEFUN ("host-available-p", Fhost_available_p, Shost_available_p,
        0, 0, 0,
        doc: /* Return t if Emacs runs inside a host application.
 That is the case when Emacs was loaded as a library by a program that
@@ -151,7 +151,7 @@ its own.  */)
   return host_api ? Qt : Qnil;
 }
 
-DEFUN ("w32-host-post", Fw32_host_post, Sw32_host_post, 1, 1, 0,
+DEFUN ("host-post", Fhost_post, Shost_post, 1, 1, 0,
        doc: /* Send MESSAGE, a string, to the host application.
 Return t if it was sent, nil if there is no host.  What a message may
 say is up to the host.  */)
@@ -166,7 +166,7 @@ say is up to the host.  */)
   return Qt;
 }
 
-DEFUN ("w32-host-take-events", Fw32_host_take_events, Sw32_host_take_events,
+DEFUN ("host-take-events", Fhost_take_events, Shost_take_events,
        0, 0, 0,
        doc: /* Return the messages the host application has sent since the
 last call, as a list of strings, oldest first, and forget them.  */)
@@ -203,17 +203,16 @@ last call, as a list of strings, oldest first, and forget them.  */)
 void
 init_w32host (void)
 {
-  w32_host_get_api_fn get_api
-    = (w32_host_get_api_fn) get_proc_addr (GetModuleHandle (NULL),
-					   "w32_host_get_api");
-  const struct w32_host_api *api;
+  host_get_api_fn get_api
+    = (host_get_api_fn) get_proc_addr (GetModuleHandle (NULL), HOST_GET_API);
+  const struct host_api *api;
 
   /* No host exports this, and neither does emacs.exe.  */
   if (!get_api)
     return;
 
-  api = get_api (W32_HOST_API_VERSION);
-  if (!api || api->version != W32_HOST_API_VERSION
+  api = get_api (HOST_API_VERSION);
+  if (!api || api->version != HOST_API_VERSION
       || !api->post || !api->on_event)
     return;
 
@@ -227,7 +226,12 @@ init_w32host (void)
 void
 syms_of_w32host (void)
 {
-  defsubr (&Sw32_host_available_p);
-  defsubr (&Sw32_host_post);
-  defsubr (&Sw32_host_take_events);
+  defsubr (&Shost_available_p);
+  defsubr (&Shost_post);
+  defsubr (&Shost_take_events);
+
+  /* The names these had while there was only Windows, for a while.  */
+  Ffset (intern_c_string ("w32-host-available-p"), intern_c_string ("host-available-p"));
+  Ffset (intern_c_string ("w32-host-post"), intern_c_string ("host-post"));
+  Ffset (intern_c_string ("w32-host-take-events"), intern_c_string ("host-take-events"));
 }

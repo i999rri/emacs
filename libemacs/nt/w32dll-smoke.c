@@ -43,7 +43,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 typedef int (*w32_emacs_init_fn) (int, char **);
 
-static w32_host_event_fn event_sink;
+static host_event_fn event_sink;
 static void *event_data;
 
 static void
@@ -59,7 +59,7 @@ host_post (const char *message)
 }
 
 static void
-host_on_event (w32_host_event_fn fn, void *data)
+host_on_event (host_event_fn fn, void *data)
 {
   event_sink = fn;
   event_data = data;
@@ -125,20 +125,20 @@ make_host_window (void)
   ShowWindow (host_hwnd, SW_SHOW);
 }
 
-static const struct w32_host_api host_api =
+static const struct host_api host_api =
   {
-    W32_HOST_API_VERSION,
+    HOST_API_VERSION,
     host_post,
     host_on_event,
     host_window
   };
 
-__declspec (dllexport) const struct w32_host_api *w32_host_get_api (unsigned);
+__declspec (dllexport) const struct host_api *host_get_api (unsigned);
 
-const struct w32_host_api *
-w32_host_get_api (unsigned version)
+const struct host_api *
+host_get_api (unsigned version)
 {
-  return version == W32_HOST_API_VERSION ? &host_api : NULL;
+  return version == HOST_API_VERSION ? &host_api : NULL;
 }
 
 struct emacs_run

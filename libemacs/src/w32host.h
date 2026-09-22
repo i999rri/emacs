@@ -17,49 +17,16 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
-/* A host application that owns the window and loads libemacs.dll
-   exports w32_host_get_api from its executable, and Emacs asks for it
-   once, at startup.  A host that does not, and emacs.exe, leave Emacs
-   as it is.
-
-   Messages both ways are UTF-8 strings, with nothing said here about
-   what is in them: that is between the host and the Lisp it runs.
-   Only C types cross, because the host may be built with another
-   compiler and another C runtime than Emacs.  */
+/* What of the host is particular to Windows: the frames that are
+   windows of Emacs's on no screen, which the host draws.  The table
+   the host gives Emacs is the same on every system, in host.h.  */
 
 #ifndef W32HOST_H
 #define W32HOST_H
 
-/* For HWND, below.  The table itself passes the window as a void *,
-   so that a host can take this header on its own terms.  */
 #include <windows.h>
 
-#define W32_HOST_API_VERSION 2
-
-/* Called by the host with one message, from a thread of its own.  The
-   message belongs to the host and is not kept.  */
-typedef void (*w32_host_event_fn) (void *data, const char *message);
-
-struct w32_host_api
-{
-  unsigned version;
-
-  /* Emacs to the host.  Called on Emacs's thread.  */
-  void (*post) (const char *message);
-
-  /* The host to Emacs.  Called once, with the function that takes the
-     messages of the host and the data to pass back to it.  */
-  void (*on_event) (w32_host_event_fn fn, void *data);
-
-  /* The window frames are to be made in, as an HWND, or null to leave
-     Emacs its own windows.  The host places and sizes them itself:
-     Emacs says which window it made and where it is in its messages,
-     and does not move it afterwards.  */
-  void *(*window) (void);
-};
-
-/* What the host exports.  Returns null if it does not speak VERSION.  */
-typedef const struct w32_host_api *(*w32_host_get_api_fn) (unsigned version);
+#include "host.h"
 
 /* Ask the host for its interface.  Does nothing if there is no host.  */
 extern void init_w32host (void);
