@@ -2829,7 +2829,7 @@ with DISPLAY.  To get information for each physical monitor, use
 `display-monitor-attributes-list'."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk android))
+     ((memq frame-type '(x w32 ns haiku pgtk android host))
       (x-display-pixel-height display))
      (t
       (tty-display-pixel-height display)))))
@@ -2850,7 +2850,7 @@ with DISPLAY.  To get information for each physical monitor, use
 `display-monitor-attributes-list'."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk android))
+     ((memq frame-type '(x w32 ns haiku pgtk android host))
       (x-display-pixel-width display))
      (t
       (tty-display-pixel-width display)))))
@@ -2888,7 +2888,7 @@ For graphical terminals, note that on \"multi-monitor\" setups this
 refers to the height in millimeters for all physical monitors
 associated with DISPLAY.  To get information for each physical
 monitor, use `display-monitor-attributes-list'."
-  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk android))
+  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk android host))
        (or (cddr (assoc (or display (frame-parameter nil 'display))
 			display-mm-dimensions-alist))
 	   (cddr (assoc t display-mm-dimensions-alist))
@@ -2909,7 +2909,7 @@ For graphical terminals, note that on \"multi-monitor\" setups this
 refers to the width in millimeters for all physical monitors
 associated with DISPLAY.  To get information for each physical
 monitor, use `display-monitor-attributes-list'."
-  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk android))
+  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk android host))
        (or (cadr (assoc (or display (frame-parameter nil 'display))
 			display-mm-dimensions-alist))
 	   (cadr (assoc t display-mm-dimensions-alist))
@@ -2953,7 +2953,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk android))
+     ((memq frame-type '(x w32 ns haiku pgtk android host))
       (x-display-planes display))
      ((eq frame-type 'pc)
       4)

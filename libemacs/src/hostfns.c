@@ -618,6 +618,88 @@ is not a color.  */)
   return list3i (value.red, value.green, value.blue);
 }
 
+/* How big the display of DPYINFO is, in pixels.  The host has not said
+   yet how big the screen it is on is, so it is taken to be the window
+   the root frame is drawn in, which is all of the screen Emacs can
+   put anything on; before there is a root frame, a screen of a common
+   size.  TODO: the host's own size of its screen, in its hello.  */
+
+static void
+host_display_size (struct host_display_info *dpyinfo, int *width, int *height)
+{
+  Lisp_Object tail, frame;
+
+  *width = 1920;
+  *height = 1080;
+
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+
+      if (FRAME_HOST_P (f) && !FRAME_PARENT_FRAME (f)
+	  && FRAME_DISPLAY_INFO (f) == dpyinfo)
+	{
+	  *width = FRAME_PIXEL_WIDTH (f);
+	  *height = FRAME_PIXEL_HEIGHT (f);
+	  return;
+	}
+    }
+}
+
+DEFUN ("x-display-pixel-width", Fx_display_pixel_width,
+       Sx_display_pixel_width, 0, 1, 0,
+       doc: /* Return the width in pixels of the host's display TERMINAL.
+That is the window the host draws the root frame in, since the host does
+not say how big its screen is.  */)
+  (Lisp_Object terminal)
+{
+  int width, height;
+
+  host_display_size (check_x_display_info (terminal), &width, &height);
+  return make_fixnum (width);
+}
+
+DEFUN ("x-display-pixel-height", Fx_display_pixel_height,
+       Sx_display_pixel_height, 0, 1, 0,
+       doc: /* Return the height in pixels of the host's display TERMINAL.
+That is the window the host draws the root frame in, since the host does
+not say how big its screen is.  */)
+  (Lisp_Object terminal)
+{
+  int width, height;
+
+  host_display_size (check_x_display_info (terminal), &width, &height);
+  return make_fixnum (height);
+}
+
+DEFUN ("x-display-mm-width", Fx_display_mm_width, Sx_display_mm_width,
+       0, 1, 0,
+       doc: /* Return the width in millimeters of the host's display TERMINAL.
+It is the width in pixels at the resolution the display is taken to
+have.  */)
+  (Lisp_Object terminal)
+{
+  struct host_display_info *dpyinfo = check_x_display_info (terminal);
+  int width, height;
+
+  host_display_size (dpyinfo, &width, &height);
+  return make_fixnum (width * 25.4 / dpyinfo->resx);
+}
+
+DEFUN ("x-display-mm-height", Fx_display_mm_height, Sx_display_mm_height,
+       0, 1, 0,
+       doc: /* Return the height in millimeters of the host's display TERMINAL.
+It is the height in pixels at the resolution the display is taken to
+have.  */)
+  (Lisp_Object terminal)
+{
+  struct host_display_info *dpyinfo = check_x_display_info (terminal);
+  int width, height;
+
+  host_display_size (dpyinfo, &width, &height);
+  return make_fixnum (height * 25.4 / dpyinfo->resy);
+}
+
 DEFUN ("host-frame-list-z-order", Fhost_frame_list_z_order,
        Shost_frame_list_z_order, 0, 1, 0,
        doc: /* Return the list of Emacs's frames, in Z (stacking) order.
@@ -670,6 +752,10 @@ syms_of_hostfns (void)
   defsubr (&Sx_display_grayscale_p);
   defsubr (&Sx_display_color_cells);
   defsubr (&Sx_display_planes);
+  defsubr (&Sx_display_pixel_width);
+  defsubr (&Sx_display_pixel_height);
+  defsubr (&Sx_display_mm_width);
+  defsubr (&Sx_display_mm_height);
   defsubr (&Sxw_color_defined_p);
   defsubr (&Sxw_color_values);
   defsubr (&Sx_hide_tip);
