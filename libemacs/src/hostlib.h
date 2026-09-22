@@ -20,6 +20,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifndef HOSTLIB_H
 #define HOSTLIB_H
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "host.h"
@@ -32,6 +33,17 @@ extern const struct host_api *host_current_api (void);
 extern void *host_alloc (size_t);
 extern void *host_realloc (void *, size_t);
 extern void host_free (void *);
+
+/* Have the messages IS_INPUT says are input kept apart from those
+   Lisp takes, for host_take_input, and WAKEUP called each time one
+   comes.  Both are called on the host's thread, and may use nothing
+   of Emacs.  Does nothing when there is no host.  */
+extern void host_claim_input (bool (*is_input) (const char *),
+			      void (*wakeup) (void));
+
+/* The oldest input message not yet taken, to be freed with host_free,
+   or null if there is none.  */
+extern char *host_take_input (void);
 
 /* Find the host as Emacs starts, and give Lisp what it has of it.
    Called from emacs.c on every system.  */

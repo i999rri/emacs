@@ -43,7 +43,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 /* The host's interface, or null when Emacs runs on its own.  */
 static const struct host_api *host_api;
 
-/* Messages the host has sent and Lisp has not taken yet, oldest
+/* Messages the host has sent and Emacs has not taken yet, oldest
    first.  The host writes them from a thread of its own, so
    everything here is under event_lock.  */
 struct host_event
@@ -52,16 +52,29 @@ struct host_event
   char *message;
 };
 
-static struct host_event *event_head;
-static struct host_event *event_tail;
+struct host_queue
+{
+  struct host_event *head;
+  struct host_event *tail;
+  int pending;
+};
+
+/* What Lisp takes with `host-take-events', and the input a window
+   system of the host's takes in C (host_claim_input): each message
+   goes to one or the other.  */
+static struct host_queue lisp_queue;
+static struct host_queue input_queue;
 static sys_mutex_t event_lock;
 
-/* Stop the queue from growing without bound if Lisp never takes the
-   events, as when the host sends to an Emacs that is busy or wedged.
-   The oldest go first: the newest are the ones still worth acting
-   on.  */
+/* Stop a queue from growing without bound if nothing takes the events,
+   as when the host sends to an Emacs that is busy or wedged.  The
+   oldest go first: the newest are the ones still worth acting on.  */
 #define MAX_PENDING_EVENTS 4096
-static int pending_events;
+
+/* Which messages are input, and how to tell whoever takes them that
+   there are some; null while nothing has claimed input.  */
+static bool (*input_message_p) (const char *);
+static void (*input_wakeup) (void);
 
 void *
 host_alloc (size_t size)
@@ -129,27 +142,79 @@ receive_host_event (void *data, const char *message)
   event->message = copy;
 
   sys_mutex_lock (&event_lock);
+  bool (*is_input) (const char *) = input_message_p;
+  void (*wakeup) (void) = input_wakeup;
+  sys_mutex_unlock (&event_lock);
 
-  if (event_tail)
-    event_tail->next = event;
+  /* Outside the lock, since it reads the message.  */
+  bool input = is_input && is_input (copy);
+  struct host_queue *queue = input ? &input_queue : &lisp_queue;
+
+  sys_mutex_lock (&event_lock);
+
+  if (queue->tail)
+    queue->tail->next = event;
   else
-    event_head = event;
-  event_tail = event;
-  pending_events++;
+    queue->head = event;
+  queue->tail = event;
+  queue->pending++;
 
-  while (MAX_PENDING_EVENTS < pending_events)
+  while (MAX_PENDING_EVENTS < queue->pending)
     {
-      struct host_event *oldest = event_head;
+      struct host_event *oldest = queue->head;
 
-      event_head = oldest->next;
-      if (!event_head)
-	event_tail = NULL;
-      pending_events--;
+      queue->head = oldest->next;
+      if (!queue->head)
+	queue->tail = NULL;
+      queue->pending--;
       host_free (oldest->message);
       host_free (oldest);
     }
 
   sys_mutex_unlock (&event_lock);
+
+  if (input)
+    wakeup ();
+}
+
+void
+host_claim_input (bool (*is_input) (const char *), void (*wakeup) (void))
+{
+  if (!host_api)
+    return;
+
+  sys_mutex_lock (&event_lock);
+  input_message_p = is_input;
+  input_wakeup = wakeup;
+  sys_mutex_unlock (&event_lock);
+}
+
+char *
+host_take_input (void)
+{
+  struct host_event *event;
+  char *message = NULL;
+
+  if (!host_api)
+    return NULL;
+
+  sys_mutex_lock (&event_lock);
+  event = input_queue.head;
+  if (event)
+    {
+      input_queue.head = event->next;
+      if (!input_queue.head)
+	input_queue.tail = NULL;
+      input_queue.pending--;
+    }
+  sys_mutex_unlock (&event_lock);
+
+  if (event)
+    {
+      message = event->message;
+      host_free (event);
+    }
+  return message;
 }
 
 DEFUN ("host-available-p", Fhost_available_p, Shost_available_p,
@@ -181,7 +246,9 @@ say is up to the host.  */)
 DEFUN ("host-take-events", Fhost_take_events, Shost_take_events,
        0, 0, 0,
        doc: /* Return the messages the host application has sent since the
-last call, as a list of strings, oldest first, and forget them.  */)
+last call, as a list of strings, oldest first, and forget them.
+Input that the window system reads itself, as the `host' window system
+reads keys and the pointer, is not among them.  */)
   (void)
 {
   Lisp_Object events = Qnil;
@@ -193,9 +260,9 @@ last call, as a list of strings, oldest first, and forget them.  */)
   /* Take the whole queue at once, so that decoding the messages, which
      may signal, does not hold the lock against the host.  */
   sys_mutex_lock (&event_lock);
-  taken = event_head;
-  event_head = event_tail = NULL;
-  pending_events = 0;
+  taken = lisp_queue.head;
+  lisp_queue.head = lisp_queue.tail = NULL;
+  lisp_queue.pending = 0;
   sys_mutex_unlock (&event_lock);
 
   while (taken)
