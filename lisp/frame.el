@@ -2509,6 +2509,7 @@ workarea attribute."
 ;; (declare-function pgtk-frame-list-z-order "pgtkfns.c" (&optional display))
 (declare-function haiku-frame-list-z-order "haikufns.c" (&optional display))
 (declare-function android-frame-list-z-order "androidfns.c" (&optional display))
+(declare-function host-frame-list-z-order "hostfns.c" (&optional display))
 (declare-function tty-frame-list-z-order "term.c" (&optional display))
 
 (defun frame-list-z-order (&optional display)
@@ -2538,6 +2539,8 @@ Return nil if DISPLAY contains no Emacs frame."
       (haiku-frame-list-z-order display))
      ((eq frame-type 'android)
       (android-frame-list-z-order display))
+     ((eq frame-type 'host)
+      (host-frame-list-z-order display))
      (t
       (tty-frame-list-z-order display)))))
 
@@ -2740,7 +2743,7 @@ that use a window system such as X, and false for text-only terminals.
 DISPLAY can be a display name, a frame, or nil (meaning the selected
 frame's display)."
   (not (null (memq (framep-on-display display) '(x w32 ns pgtk haiku
-                                                   android)))))
+                                                   android host)))))
 
 (defun display-images-p (&optional display)
   "Return non-nil if DISPLAY can display images.
@@ -2965,7 +2968,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk android))
+     ((memq frame-type '(x w32 ns haiku pgtk android host))
       (x-display-color-cells display))
      ((eq frame-type 'pc)
       16)

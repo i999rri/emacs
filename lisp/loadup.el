@@ -313,6 +313,15 @@
       (load "term/common-win")
       (load "term/haiku-win")))
 
+;; libemacs keeps its Lisp beside its C, in libemacs/lisp, which is
+;; not on `load-path'; it is found from the Lisp directory instead.
+(if (featurep 'host)
+    (progn
+      (load "term/common-win")
+      (load (expand-file-name "../libemacs/lisp/term/host-win"
+                              (file-name-directory
+                               (locate-file "loadup.el" load-path))))))
+
 (if (featurep 'android)
     (progn
       (load "ls-lisp")
