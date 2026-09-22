@@ -323,6 +323,8 @@ void
 syms_of_hostscreen (void)
 {
   DEFSYM (QCtext, ":text");
+  /* Also image.c's, which only a build with a window system has.  */
+  DEFSYM (QCascent, ":ascent");
   DEFSYM (QCx, ":x");
   DEFSYM (QCy, ":y");
   DEFSYM (QCruns, ":runs");
