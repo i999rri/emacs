@@ -486,7 +486,7 @@ SOME_MACHINE_OBJECTS = dosfns.o msdos.o \
   nsterm.o nsfns.o nsmenu.o nsselect.o nsimage.o nsfont.o macfont.o \
   nsxwidget.o \
   w32.o w32console.o w32cygwinx.o w32fns.o w32heap.o w32inevt.o w32notify.o \
-  w32host.o hostscreen.o w32menu.o w32proc.o w32reg.o w32select.o w32start.o w32term.o \
+  w32host.o hostpipe.o hostscreen.o w32menu.o w32proc.o w32reg.o w32select.o w32start.o w32term.o \
   w32xfns.o \
   w16select.o widget.o xfont.o ftfont.o xftfont.o gtkutil.o \
   xsettings.o xgselect.o termcap.o hbfont.o \
@@ -670,7 +670,7 @@ endif
 ## make-docfile finds a source from its object's name in $(srcdir), so
 ## the objects whose sources are in libemacs/src are named to it with
 ## the way there.
-LIBEMACS_OBJ = w32host.o hostscreen.o w32dll.o w32start.o
+LIBEMACS_OBJ = w32host.o hostpipe.o hostscreen.o w32dll.o w32start.o
 docfile_names = $(foreach o,$(1),$(if $(filter $(o),$(LIBEMACS_OBJ)),../libemacs/src/$(o),$(o)))
 
 $(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj)

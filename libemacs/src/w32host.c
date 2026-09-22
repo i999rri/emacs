@@ -27,6 +27,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "w32common.h"
 #include "w32term.h"
 #include "w32host.h"
+#include "hostpipe.h"
 
 /* The host's interface, or null when Emacs runs on its own.  */
 static const struct host_api *host_api;
@@ -205,13 +206,10 @@ init_w32host (void)
 {
   host_get_api_fn get_api
     = (host_get_api_fn) get_proc_addr (GetModuleHandle (NULL), HOST_GET_API);
-  const struct host_api *api;
+  /* No host exports this, and neither does emacs.exe; a host that only
+     started Emacs may still be at the other end of its pipes.  */
+  const struct host_api *api = get_api ? get_api (HOST_API_VERSION) : host_pipe_api ();
 
-  /* No host exports this, and neither does emacs.exe.  */
-  if (!get_api)
-    return;
-
-  api = get_api (HOST_API_VERSION);
   if (!api || api->version != HOST_API_VERSION
       || !api->post || !api->on_event)
     return;
