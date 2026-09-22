@@ -521,7 +521,8 @@ extern int tty_read_avail_input (struct terminal *, struct input_event *);
 extern struct timespec timer_check (void);
 extern void mark_kboards (void);
 
-#if defined HAVE_NTGUI || defined HAVE_X_WINDOWS || defined HAVE_PGTK
+#if defined HAVE_NTGUI || defined HAVE_X_WINDOWS || defined HAVE_PGTK \
+  || defined HAVE_HOST
 extern const char *const lispy_function_keys[];
 #endif
 
