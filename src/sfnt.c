@@ -21,6 +21,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "sfnt.h"
 
+#ifdef HAVE_HOST
+#include "sfnthost.h"
+#endif /* HAVE_HOST */
+
 #include <assert.h>
 #include <attribute.h>
 #include <byteswap.h>
@@ -5926,6 +5930,11 @@ sfnt_find_name (struct sfnt_name_table *name,
 		struct sfnt_name_record *record)
 {
   int i;
+
+#ifdef HAVE_HOST
+  if (host_find_english_name (name, code, record))
+    return name->data + record->offset;
+#endif /* HAVE_HOST */
 
   for (i = 0; i < name->count; ++i)
     {

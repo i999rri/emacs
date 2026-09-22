@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "sfntfont.h"
 #include "pdumper.h"
 #include "hostterm.h"
+#include "sfnthost.h"
 
 /* How deep below a font directory to look: fonts are kept a directory
    or two down, by foundry and by format, and a directory that is a
@@ -139,6 +140,53 @@ enumerate_directory (const char *directory, int depth)
     }
 
   closedir (dir);
+}
+
+/* The English name of CODE in NAME, which is what a font is to be
+   known by here: the host draws the text with the system's own fonts
+   and finds them by the family Emacs gives it, and a font whose names
+   are in many languages lists them by the number of the language,
+   before English as often as not.  The Windows record for American
+   English is taken first, then the Macintosh one for English, which
+   is language 0 there.  */
+
+bool
+host_find_english_name (struct sfnt_name_table *name,
+			enum sfnt_name_identifier_code code,
+			struct sfnt_name_record *record)
+{
+  int best = -1, best_rank = 2;
+
+  for (int i = 0; i < name->count; ++i)
+    {
+      struct sfnt_name_record *candidate = &name->name_records[i];
+      int rank;
+
+      if (candidate->name_id != code)
+	continue;
+
+      if (candidate->platform_id == SFNT_PLATFORM_MICROSOFT
+	  && candidate->language_id == 0x0409)
+	rank = 0;
+      else if (candidate->platform_id == SFNT_PLATFORM_MACINTOSH
+	       && candidate->language_id == 0)
+	rank = 1;
+      else
+	continue;
+
+      if (rank < best_rank)
+	{
+	  best = i;
+	  best_rank = rank;
+	}
+    }
+
+  if (best < 0)
+    return false;
+
+  /* The offsets within have already been validated.  */
+  *record = name->name_records[best];
+  return true;
 }
 
 /* Read the font files in `host-font-directories'.  Done once, when the
