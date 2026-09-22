@@ -2638,7 +2638,7 @@ AS_IF([test "$with_host" = "yes"],[
   with_x=no
   dnl The fonts are the sfnt engine's, which reads font files itself
   dnl and only measures here (sfntfont-host.c).
-  HOST_OBJ="hostterm.o hostfns.o sfnt.o sfntfont.o sfntfont-host.o"
+  HOST_OBJ="hostterm.o hostfns.o hostinput.o sfnt.o sfntfont.o sfntfont-host.o"
   AC_DEFINE([HAVE_HOST], [1], [Define to 1 if Emacs's frames are drawn
 by a host application (libemacs).])
 ])
