@@ -5622,7 +5622,10 @@ w32_read_socket (struct terminal *terminal,
 			&& f != dpyinfo->w32_focus_frame
 			/* This does not help when the click happens in
 			   a grand-parent frame.  */
-			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)))
+			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)
+			/* A frame the host draws has the focus with the
+			   host's window, which the click came through.  */
+			&& !w32_host_drawn (f)))
 		  inev.kind = NO_EVENT;
 
 		if (!NILP (tab_bar_arg))
@@ -5661,7 +5664,10 @@ w32_read_socket (struct terminal *terminal,
 			&& f != dpyinfo->w32_focus_frame
 			/* This does not help when the click happens in
 			   a grand-parent frame.  */
-			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)))
+			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)
+			/* A frame the host draws has the focus with the
+			   host's window, which the click came through.  */
+			&& !w32_host_drawn (f)))
 		  inev.kind = NO_EVENT;
 	      }
 

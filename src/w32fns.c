@@ -5299,7 +5299,13 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 	  struct frame *p = FRAME_PARENT_FRAME (XFRAME (selected_frame));
 
-	  if (FRAME_PARENT_FRAME (f) || f == p)
+	  /* Only a frame Windows draws is given the focus here.  The
+	     window of a frame the host draws is on no screen, and giving
+	     it the focus takes it from the host's window, which is where
+	     the keys arrive; the click selects the frame all the same,
+	     from the event it is posted as.  */
+	  if (!f->output_data.w32->host_drawn
+	      && (FRAME_PARENT_FRAME (f) || f == p))
 	    {
 	      SetFocus (hwnd);
 	      SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
