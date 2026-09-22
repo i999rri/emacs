@@ -205,6 +205,17 @@ typedef android_pixmap Pixmap;
 #define n_planes n_image_planes
 #endif
 
+#ifdef HAVE_HOST
+typedef struct host_bitmap_record Bitmap_Record;
+
+#define GET_PIXEL(ximg, x, y) host_get_pixel (ximg, x, y)
+#define PUT_PIXEL host_put_pixel
+#define NO_PIXMAP 0
+
+#define PIX_MASK_RETAIN	0
+#define PIX_MASK_DRAW	1
+#endif
+
 static void image_disable_image (struct frame *, struct image *);
 static void image_edge_detection (struct frame *, struct image *, Lisp_Object,
                                   Lisp_Object);
@@ -1073,6 +1084,12 @@ image_create_bitmap_from_file (struct frame *f, Lisp_Object file)
 
   return id;
 #endif
+#endif
+
+#ifdef HAVE_HOST
+  /* TODO: bitmaps, for the host to draw.  */
+  ((void) dpyinfo);
+  return -1;
 #endif
 }
 
@@ -4199,6 +4216,13 @@ image_create_x_image_and_pixmap_1 (struct frame *f, int width, int height, int d
   *pimg = *pixmap;
   return 1;
 #endif
+
+#ifdef HAVE_HOST
+  /* TODO: images, for the host to draw.  */
+  *pimg = NULL;
+  image_error ("Images are not shown on host frames yet");
+  return 0;
+#endif
 }
 
 
@@ -4352,7 +4376,7 @@ image_unget_x_image_or_dc (struct image *img, bool mask_p,
 static Emacs_Pix_Container
 image_get_x_image (struct frame *f, struct image *img, bool mask_p)
 {
-#if defined USE_CAIRO || defined (HAVE_HAIKU)
+#if defined USE_CAIRO || defined (HAVE_HAIKU) || defined (HAVE_HOST)
   return !mask_p ? img->pixmap : img->mask;
 #elif defined HAVE_X_WINDOWS || defined HAVE_ANDROID
   XImage *ximg_in_img = !mask_p ? img->ximg : img->mask_img;
@@ -6962,7 +6986,7 @@ image_to_emacs_colors (struct frame *f, struct image *img, bool rgb_p)
   for (y = 0; y < img->height; ++y)
     {
 #if !defined USE_CAIRO && !defined HAVE_NS && !defined HAVE_HAIKU	\
-  && !defined HAVE_ANDROID
+  && !defined HAVE_ANDROID && !defined HAVE_HOST
       Emacs_Color *row = p;
       for (x = 0; x < img->width; ++x, ++p)
 	p->pixel = GET_PIXEL (ximg, x, y);
@@ -7307,6 +7331,7 @@ image_disable_image (struct frame *f, struct image *img)
     {
 #ifndef HAVE_NTGUI
 #ifndef HAVE_NS  /* TODO: NS support, however this not needed for toolbars */
+#ifndef HAVE_HOST /* TODO: host support, once there are images.  */
 
 #if !defined USE_CAIRO && !defined HAVE_HAIKU && !defined HAVE_ANDROID
 #define CrossForeground(f) BLACK_PIX_DEFAULT (f)
@@ -7324,6 +7349,7 @@ image_disable_image (struct frame *f, struct image *img)
       if (img->mask)
 	image_pixmap_draw_cross (f, img->mask, 0, 0, img->width, img->height,
 				 MaskForeground (f));
+#endif /* !HAVE_HOST */
 #endif /* !HAVE_NS */
 #else
       HDC hdc, bmpdc;

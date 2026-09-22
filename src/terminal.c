@@ -474,6 +474,10 @@ return values.  */)
       return Qhaiku;
     case output_android:
       return Qandroid;
+#ifdef HAVE_HOST
+    case output_host:
+      return Qhost;
+#endif
     default:
       emacs_abort ();
     }

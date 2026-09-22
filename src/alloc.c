@@ -5880,6 +5880,10 @@ garbage_collect (void)
   mark_haiku_display ();
 #endif
 
+#ifdef HAVE_HOST
+  mark_host_display ();
+#endif
+
 #ifdef HAVE_WINDOW_SYSTEM
   mark_fringe_data ();
 #endif

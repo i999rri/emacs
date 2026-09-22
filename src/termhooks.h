@@ -65,6 +65,9 @@ enum output_method
   output_pgtk,
   output_haiku,
   output_android,
+#ifdef HAVE_HOST
+  output_host,
+#endif
 };
 
 /* Input queue declarations and hooks.  */
@@ -540,6 +543,9 @@ struct terminal
     struct pgtk_display_info *pgtk;		/* pgtkterm.h */
     struct haiku_display_info *haiku;		/* haikuterm.h */
     struct android_display_info *android;	/* androidterm.h */
+#ifdef HAVE_HOST
+    struct host_display_info *host;		/* hostterm.h */
+#endif
   } display_info;
 
 
@@ -957,6 +963,9 @@ extern struct terminal *terminal_list;
 #elif defined (HAVE_ANDROID)
 #define TERMINAL_FONT_CACHE(t)						\
   (t->type == output_android ? t->display_info.android->name_list_element : Qnil)
+#elif defined (HAVE_HOST)
+#define TERMINAL_FONT_CACHE(t)						\
+  (t->type == output_host ? t->display_info.host->name_list_element : Qnil)
 #endif
 
 extern struct terminal *decode_live_terminal (Lisp_Object);

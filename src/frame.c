@@ -318,6 +318,10 @@ See also `frame-live-p'.  */)
       return Qhaiku;
     case output_android:
       return Qandroid;
+#ifdef HAVE_HOST
+    case output_host:
+      return Qhost;
+#endif
     default:
       emacs_abort ();
     }
@@ -7258,6 +7262,9 @@ syms_of_frame (void)
   DEFSYM (Qpgtk, "pgtk");
   DEFSYM (Qhaiku, "haiku");
   DEFSYM (Qandroid, "android");
+#ifdef HAVE_HOST
+  DEFSYM (Qhost, "host");
+#endif
   DEFSYM (Qvisible, "visible");
   DEFSYM (Qbuffer_predicate, "buffer-predicate");
   DEFSYM (Qbuffer_list, "buffer-list");

@@ -7315,6 +7315,14 @@ init_display_interactive (void)
     }
 #endif
 
+#ifdef HAVE_HOST
+  if (!inhibit_window_system && !will_dump_p ())
+    {
+      Vinitial_window_system = Qhost;
+      return;
+    }
+#endif
+
   /* If no window system has been specified, try to use the terminal.  */
   if (! isatty (STDIN_FILENO))
     fatal ("standard input is not a tty");

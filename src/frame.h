@@ -659,6 +659,9 @@ struct frame
     struct pgtk_output *pgtk;		/* From pgtkterm.h. */
     struct haiku_output *haiku;		/* From haikuterm.h. */
     struct android_output *android;	/* From androidterm.h.  */
+#ifdef HAVE_HOST
+    struct host_output *host;		/* From hostterm.h.  */
+#endif
   }
   output_data;
 
@@ -962,6 +965,11 @@ default_pixels_per_inch_y (void)
 #else
 #define FRAME_ANDROID_P(f) ((f)->output_method == output_android)
 #endif
+#ifndef HAVE_HOST
+#define FRAME_HOST_P(f) false
+#else
+#define FRAME_HOST_P(f) ((f)->output_method == output_host)
+#endif
 
 /* FRAME_WINDOW_P tests whether the frame is a graphical window system
    frame.  */
@@ -982,6 +990,9 @@ default_pixels_per_inch_y (void)
 #endif
 #ifdef HAVE_ANDROID
 #define FRAME_WINDOW_P(f) FRAME_ANDROID_P (f)
+#endif
+#ifdef HAVE_HOST
+#define FRAME_WINDOW_P(f) FRAME_HOST_P (f)
 #endif
 #ifndef FRAME_WINDOW_P
 #define FRAME_WINDOW_P(f) ((void) (f), false)

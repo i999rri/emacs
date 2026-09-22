@@ -2478,6 +2478,13 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_sfntfont_android ();
 #endif /* !ANDROID_STUBIFY */
 #endif /* HAVE_ANDROID */
+#ifdef HAVE_HOST
+      syms_of_hostterm ();
+      syms_of_hostfns ();
+      syms_of_fontset ();
+      syms_of_sfntfont ();
+      syms_of_sfntfont_host ();
+#endif /* HAVE_HOST */
 
       syms_of_gnutls ();
 
@@ -2586,6 +2593,11 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_androidselect ();
   init_sfntfont ();
   init_sfntfont_android ();
+#endif
+
+#ifdef HAVE_HOST
+  init_sfntfont ();
+  init_sfntfont_host ();
 #endif
 
   if (!initialized)

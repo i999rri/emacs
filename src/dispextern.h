@@ -170,6 +170,13 @@ typedef struct android_image *Emacs_Pix_Container;
 typedef struct android_image *Emacs_Pix_Context;
 #endif
 
+#ifdef HAVE_HOST
+#include "hostgui.h"
+typedef struct host_display_info Display_Info;
+typedef Emacs_Pixmap Emacs_Pix_Container;
+typedef Emacs_Pixmap Emacs_Pix_Context;
+#endif
+
 #ifdef HAVE_WINDOW_SYSTEM
 # include <time.h>
 # include "fontset.h"
@@ -3738,7 +3745,7 @@ ptrdiff_t lookup_image (struct frame *, Lisp_Object, int);
 Lisp_Object image_spec_value (Lisp_Object, Lisp_Object, bool *);
 
 #if defined HAVE_X_WINDOWS || defined USE_CAIRO || defined HAVE_NS \
-  || defined HAVE_HAIKU || defined HAVE_ANDROID
+  || defined HAVE_HAIKU || defined HAVE_ANDROID || defined HAVE_HOST
 #define RGB_PIXEL_COLOR unsigned long
 #endif
 
@@ -3825,6 +3832,9 @@ void gamma_correct (struct frame *, COLORREF *);
 void gamma_correct (struct frame *, Emacs_Color *);
 #endif
 #ifdef HAVE_ANDROID
+extern void gamma_correct (struct frame *, Emacs_Color *);
+#endif
+#ifdef HAVE_HOST
 extern void gamma_correct (struct frame *, Emacs_Color *);
 #endif
 
