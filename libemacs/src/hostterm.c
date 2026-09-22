@@ -324,6 +324,13 @@ host_default_font_parameter (struct frame *f, Lisp_Object parms)
 	    break;
 	}
 
+      /* None of those, on a system that has other fonts, as NixOS
+	 does with only what the user asked for: whatever monospace font
+	 the files found have.  */
+      if (NILP (font))
+	font = font_open_by_spec (f, CALLN (Ffont_spec, QCspacing,
+					    make_fixnum (FONT_SPACING_MONO)));
+
       if (NILP (font))
 	error ("No font was found in `host-font-directories'");
     }
