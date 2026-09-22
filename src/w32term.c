@@ -7515,6 +7515,14 @@ w32_focus_frame (struct frame *f, bool noactivate)
 static void
 w32_raise_frame (struct frame *f)
 {
+  /* A frame the host draws is not raised by Windows: its window is on
+     no screen, and the host puts what it draws of the frame above the
+     rest itself.  Raising the window would bring it to the foreground,
+     taking the focus from the host's window, which is where the keys
+     arrive.  */
+  if (w32_host_drawn (f))
+    return;
+
   block_input ();
 
   /* Strictly speaking, raise-frame should only change the frame's Z
@@ -7577,6 +7585,10 @@ w32_raise_frame (struct frame *f)
 static void
 w32_lower_frame (struct frame *f)
 {
+  /* Nor is it lowered: its window is on no screen to be lowered on.  */
+  if (w32_host_drawn (f))
+    return;
+
   block_input ();
   my_set_window_pos (FRAME_W32_WINDOW (f),
 		     HWND_BOTTOM,
