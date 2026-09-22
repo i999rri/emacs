@@ -2159,6 +2159,7 @@ live frame and defaults to the selected one."
 (declare-function pgtk-frame-geometry "pgtkfns.c" (&optional frame))
 (declare-function haiku-frame-geometry "haikufns.c" (&optional frame))
 (declare-function android-frame-geometry "androidfns.c" (&optional frame))
+(declare-function host-frame-geometry "hostfns.c" (&optional frame))
 (declare-function tty-frame-geometry "term.c" (&optional frame))
 
 (defun frame-geometry (&optional frame)
@@ -2215,6 +2216,8 @@ and width values are in pixels.
       (haiku-frame-geometry frame))
      ((eq frame-type 'android)
       (android-frame-geometry frame))
+     ((eq frame-type 'host)
+      (host-frame-geometry frame))
      (t
       (tty-frame-geometry frame)))))
 
@@ -2325,6 +2328,7 @@ of frames like calls to map a frame or change its visibility."
 (declare-function pgtk-frame-edges "pgtkfns.c" (&optional frame type))
 (declare-function haiku-frame-edges "haikufns.c" (&optional frame type))
 (declare-function android-frame-edges "androidfns.c" (&optional frame type))
+(declare-function host-frame-edges "hostfns.c" (&optional frame type))
 (declare-function tty-frame-edges "term.c" (&optional frame type))
 
 (defun frame-edges (&optional frame type)
@@ -2355,6 +2359,8 @@ FRAME."
       (haiku-frame-edges frame type))
      ((eq frame-type 'android)
       (android-frame-edges frame type))
+     ((eq frame-type 'host)
+      (host-frame-edges frame type))
      (t
       (tty-frame-edges frame type)))))
 
@@ -2551,6 +2557,7 @@ Return nil if DISPLAY contains no Emacs frame."
 (declare-function haiku-frame-restack "haikufns.c" (frame1 frame2 &optional above))
 (declare-function android-frame-restack "androidfns.c" (frame1 frame2
                                                                &optional above))
+(declare-function host-frame-restack "hostfns.c" (frame1 frame2 &optional above))
 (declare-function tty-frame-restack "term.c" (frame1 frame2 &optional above))
 
 (defun frame-restack (frame1 frame2 &optional above)
@@ -2588,6 +2595,8 @@ Some window managers may refuse to restack windows."
           (pgtk-frame-restack frame1 frame2 above))
          ((eq frame-type 'android)
           (android-frame-restack frame1 frame2 above))
+         ((eq frame-type 'host)
+          (host-frame-restack frame1 frame2 above))
          (t
           (tty-frame-restack frame1 frame2 above))))
     (error "Cannot restack frames")))

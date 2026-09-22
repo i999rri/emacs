@@ -700,6 +700,110 @@ have.  */)
   return make_fixnum (height * 25.4 / dpyinfo->resy);
 }
 
+/* The geometry of host frame F, as `frame-geometry' says it, or its
+   edges of one kind when ATTRIBUTE is `outer-edges', `native-edges' or
+   `inner-edges'.  A host frame has no window of its own, and so no
+   title bar and no border of the window system's: its outer, native
+   and inner sizes differ only by what Emacs itself puts in it, the
+   internal border and the bars it lays out.  This is tty_frame_geometry
+   (term.c) for a frame that is not a terminal's.  */
+
+static Lisp_Object
+host_frame_geometry (Lisp_Object frame, Lisp_Object attribute)
+{
+  struct frame *f = decode_window_system_frame (frame);
+
+  int native_width = FRAME_PIXEL_WIDTH (f);
+  int native_height = FRAME_PIXEL_HEIGHT (f);
+
+  int outer_left = f->left_pos;
+  int outer_top = f->top_pos;
+  int outer_right = outer_left + native_width;
+  int outer_bottom = outer_top + native_height;
+
+  int internal_border_width = FRAME_INTERNAL_BORDER_WIDTH (f);
+  int inner_left = outer_left + internal_border_width;
+  int inner_top = outer_top + internal_border_width;
+  int inner_right = outer_right - internal_border_width;
+  int inner_bottom = outer_bottom - internal_border_width;
+
+  int menu_bar_height = FRAME_MENU_BAR_HEIGHT (f);
+  int menu_bar_width = menu_bar_height ? native_width : 0;
+  inner_top += menu_bar_height;
+
+  int tab_bar_height = FRAME_TAB_BAR_HEIGHT (f);
+  int tab_bar_width = (tab_bar_height
+		       ? native_width - 2 * internal_border_width
+		       : 0);
+  inner_top += tab_bar_height;
+
+  int tool_bar_height = FRAME_TOOL_BAR_HEIGHT (f);
+  int tool_bar_width = (tool_bar_height
+			? native_width - 2 * internal_border_width
+			: 0);
+  if (EQ (FRAME_TOOL_BAR_POSITION (f), Qtop))
+    inner_top += tool_bar_height;
+  else
+    inner_bottom -= tool_bar_height;
+
+  if (EQ (attribute, Qouter_edges) || EQ (attribute, Qnative_edges))
+    return list4i (outer_left, outer_top, outer_right, outer_bottom);
+  else if (EQ (attribute, Qinner_edges))
+    return list4i (inner_left, inner_top, inner_right, inner_bottom);
+
+  return list (Fcons (Qouter_position, Fcons (make_fixnum (outer_left),
+					      make_fixnum (outer_top))),
+	       Fcons (Qouter_size, Fcons (make_fixnum (native_width),
+					  make_fixnum (native_height))),
+	       Fcons (Qouter_border_width, make_fixnum (0)),
+	       Fcons (Qexternal_border_size,
+		      Fcons (make_fixnum (0), make_fixnum (0))),
+	       Fcons (Qtitle_bar_size, Fcons (make_fixnum (0), make_fixnum (0))),
+	       Fcons (Qmenu_bar_external, Qnil),
+	       Fcons (Qmenu_bar_size, Fcons (make_fixnum (menu_bar_width),
+					     make_fixnum (menu_bar_height))),
+	       Fcons (Qtab_bar_size, Fcons (make_fixnum (tab_bar_width),
+					    make_fixnum (tab_bar_height))),
+	       Fcons (Qtool_bar_external, Qnil),
+	       Fcons (Qtool_bar_position, FRAME_TOOL_BAR_POSITION (f)),
+	       Fcons (Qtool_bar_size, Fcons (make_fixnum (tool_bar_width),
+					     make_fixnum (tool_bar_height))),
+	       Fcons (Qinternal_border_width,
+		      make_fixnum (internal_border_width)));
+}
+
+DEFUN ("host-frame-geometry", Fhost_frame_geometry, Shost_frame_geometry,
+       0, 1, 0,
+       doc: /* Return geometric attributes of host frame FRAME.
+See also `frame-geometry'.  */)
+  (Lisp_Object frame)
+{
+  return host_frame_geometry (frame, Qnil);
+}
+
+DEFUN ("host-frame-edges", Fhost_frame_edges, Shost_frame_edges, 0, 2, 0,
+       doc: /* Return coordinates of the edges of host frame FRAME.
+See also `frame-edges'.  */)
+  (Lisp_Object frame, Lisp_Object type)
+{
+  if (!EQ (type, Qouter_edges) && !EQ (type, Qinner_edges))
+    type = Qnative_edges;
+  return host_frame_geometry (frame, type);
+}
+
+DEFUN ("host-frame-restack", Fhost_frame_restack, Shost_frame_restack,
+       2, 3, 0,
+       doc: /* Restack FRAME1 below FRAME2, or above it if ABOVE.
+It does nothing: the host puts what it draws of the frames over one
+another itself, and is not told how to yet.  Value is nil.  */)
+  (Lisp_Object frame1, Lisp_Object frame2, Lisp_Object above)
+{
+  /* TODO: tell the host, when frames have ids it knows them by.  */
+  decode_window_system_frame (frame1);
+  decode_window_system_frame (frame2);
+  return Qnil;
+}
+
 DEFUN ("host-frame-list-z-order", Fhost_frame_list_z_order,
        Shost_frame_list_z_order, 0, 1, 0,
        doc: /* Return the list of Emacs's frames, in Z (stacking) order.
@@ -760,4 +864,7 @@ syms_of_hostfns (void)
   defsubr (&Sxw_color_values);
   defsubr (&Sx_hide_tip);
   defsubr (&Shost_frame_list_z_order);
+  defsubr (&Shost_frame_geometry);
+  defsubr (&Shost_frame_edges);
+  defsubr (&Shost_frame_restack);
 }
