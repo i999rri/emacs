@@ -199,18 +199,6 @@ drawn WINDOW yet.  */)
       int x = row->x + (row->full_width_p
 			? 0 : window_box_left_offset (w, TEXT_AREA));
       int start = 0;
-      /* Where a face that reaches past the text is drawn to.
-	 Redisplay puts no glyphs there: it marks the row instead, and
-	 leaves what draws it to fill the rest of the line with the
-	 face of the last glyph.  That is how the line `hl-line-mode'
-	 marks is coloured to the edge of the window on the last line
-	 of a buffer, where there is no newline for the face to be
-	 on.  */
-      int fill = (!row->fill_line_p ? -1
-		  : row->full_width_p
-		  ? WINDOW_PIXEL_WIDTH (w)
-		  : (window_box_left_offset (w, TEXT_AREA)
-		     + window_box_width (w, TEXT_AREA)));
 
       if (!row->enabled_p)
 	continue;
@@ -255,12 +243,6 @@ drawn WINDOW yet.  */)
 	      width += glyphs[end].pixel_width;
 	      end++;
 	    }
-
-	  /* The last run of a row whose face reaches past its text is
-	     as wide as what is left of the line, so that what draws it
-	     paints the face there without a glyph to hang it on.  */
-	  if (end == used && x + width < fill)
-	    width = fill - x;
 
 	  runs = Fcons (host_run (f, face_id, x, width,
 				  texts ? text : NULL, nchars, nbytes),
