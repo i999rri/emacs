@@ -177,6 +177,45 @@ receive_host_event (void *data, const char *message)
     wakeup ();
 }
 
+/* Say to Lisp what C has done, in MESSAGE, as though the host had said
+   it: what the pointer is over is worked out here, and the screen it
+   changes is Lisp's to build.  */
+
+void
+host_notify (const char *message)
+{
+  size_t size = message ? strlen (message) + 1 : 0;
+  struct host_event *event;
+  char *copy;
+
+  if (!message)
+    return;
+
+  event = host_alloc (sizeof *event);
+  copy = host_alloc (size);
+  if (!event || !copy)
+    {
+      if (event)
+	host_free (event);
+      if (copy)
+	host_free (copy);
+      return;
+    }
+
+  memcpy (copy, message, size);
+  event->next = NULL;
+  event->message = copy;
+
+  sys_mutex_lock (&event_lock);
+  if (lisp_queue.tail)
+    lisp_queue.tail->next = event;
+  else
+    lisp_queue.head = event;
+  lisp_queue.tail = event;
+  lisp_queue.pending++;
+  sys_mutex_unlock (&event_lock);
+}
+
 void
 host_claim_input (bool (*is_input) (const char *), void (*wakeup) (void))
 {

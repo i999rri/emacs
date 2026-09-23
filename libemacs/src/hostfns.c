@@ -418,6 +418,32 @@ Return the frame.  PARMS is an alist of frame parameters.  */)
   f->terminal = dpyinfo->terminal;
   f->output_method = output_host;
   f->output_data.host = xzalloc (sizeof *f->output_data.host);
+
+  /* The shapes redisplay may choose between as the pointer moves over
+     the frame.  They are names rather than anything of a window
+     system's: what draws the window has its own pointer.  */
+  FRAME_OUTPUT_DATA (f)->text_cursor = HOST_CURSOR (HOST_POINTER_TEXT);
+  FRAME_OUTPUT_DATA (f)->nontext_cursor = HOST_CURSOR (HOST_POINTER_ARROW);
+  FRAME_OUTPUT_DATA (f)->modeline_cursor = HOST_CURSOR (HOST_POINTER_ARROW);
+  FRAME_OUTPUT_DATA (f)->hand_cursor = HOST_CURSOR (HOST_POINTER_HAND);
+  FRAME_OUTPUT_DATA (f)->hourglass_cursor = HOST_CURSOR (HOST_POINTER_BUSY);
+  FRAME_OUTPUT_DATA (f)->horizontal_drag_cursor
+    = HOST_CURSOR (HOST_POINTER_HORIZONTAL_DRAG);
+  FRAME_OUTPUT_DATA (f)->vertical_drag_cursor
+    = HOST_CURSOR (HOST_POINTER_VERTICAL_DRAG);
+  FRAME_OUTPUT_DATA (f)->left_edge_cursor = HOST_CURSOR (HOST_POINTER_LEFT_EDGE);
+  FRAME_OUTPUT_DATA (f)->top_left_corner_cursor
+    = HOST_CURSOR (HOST_POINTER_TOP_LEFT_CORNER);
+  FRAME_OUTPUT_DATA (f)->top_edge_cursor = HOST_CURSOR (HOST_POINTER_TOP_EDGE);
+  FRAME_OUTPUT_DATA (f)->top_right_corner_cursor
+    = HOST_CURSOR (HOST_POINTER_TOP_RIGHT_CORNER);
+  FRAME_OUTPUT_DATA (f)->right_edge_cursor = HOST_CURSOR (HOST_POINTER_RIGHT_EDGE);
+  FRAME_OUTPUT_DATA (f)->bottom_right_corner_cursor
+    = HOST_CURSOR (HOST_POINTER_BOTTOM_RIGHT_CORNER);
+  FRAME_OUTPUT_DATA (f)->bottom_edge_cursor = HOST_CURSOR (HOST_POINTER_BOTTOM_EDGE);
+  FRAME_OUTPUT_DATA (f)->bottom_left_corner_cursor
+    = HOST_CURSOR (HOST_POINTER_BOTTOM_LEFT_CORNER);
+  FRAME_OUTPUT_DATA (f)->current_cursor = HOST_CURSOR (HOST_POINTER_TEXT);
   FRAME_DISPLAY_INFO (f) = dpyinfo;
   FRAME_FONTSET (f) = -1;
 

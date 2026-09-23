@@ -105,12 +105,42 @@ struct host_display_info
   Emacs_Cursor horizontal_scroll_bar_cursor;
 };
 
+/* The shapes the pointer takes over a frame.
+
+   Redisplay chooses between the shapes a frame was given and hands the
+   one it chose back; a host has its own pointer and is told the name of
+   the shape rather than anything of Windows's or X's, so these are what
+   the frame is given.  Emacs_Cursor is a pointer here, and these stand
+   in it: none of them is one, and none is ever followed.  */
+
+enum host_pointer
+{
+  HOST_POINTER_NONE,
+  HOST_POINTER_ARROW,
+  HOST_POINTER_TEXT,
+  HOST_POINTER_HAND,
+  HOST_POINTER_BUSY,
+  HOST_POINTER_HORIZONTAL_DRAG,
+  HOST_POINTER_VERTICAL_DRAG,
+  HOST_POINTER_LEFT_EDGE,
+  HOST_POINTER_TOP_LEFT_CORNER,
+  HOST_POINTER_TOP_EDGE,
+  HOST_POINTER_TOP_RIGHT_CORNER,
+  HOST_POINTER_RIGHT_EDGE,
+  HOST_POINTER_BOTTOM_RIGHT_CORNER,
+  HOST_POINTER_BOTTOM_EDGE,
+  HOST_POINTER_BOTTOM_LEFT_CORNER,
+};
+
+#define HOST_CURSOR(shape) ((Emacs_Cursor) (intptr_t) (shape))
+#define HOST_POINTER_OF(cursor) ((enum host_pointer) (intptr_t) (cursor))
+
 struct host_output
 {
   struct host_display_info *display_info;
 
   /* The pointer shapes redisplay chooses between as the pointer moves
-     over the frame.  None of them is anything yet.  */
+     over the frame, and the one it last chose.  */
   Emacs_Cursor text_cursor;
   Emacs_Cursor nontext_cursor;
   Emacs_Cursor modeline_cursor;

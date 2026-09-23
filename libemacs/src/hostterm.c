@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "fontset.h"
 #include "hostterm.h"
+#include "hostlib.h"
 
 /* The one display there is, once `x-open-connection' has opened it.
    frame.c and keyboard.c look at it by this name, whatever the window
@@ -300,9 +301,20 @@ host_draw_glyph_string (struct glyph_string *s)
 {
 }
 
+/* The shape the pointer is to take over F, which redisplay chose as it
+   worked out what the pointer is over.
+
+   Kept rather than shown: what draws the window has the pointer, and is
+   told the name of the shape with the screen it is drawn over.  */
+
 static void
 host_define_frame_cursor (struct frame *f, Emacs_Cursor cursor)
 {
+  if (FRAME_OUTPUT_DATA (f)->current_cursor == cursor)
+    return;
+
+  FRAME_OUTPUT_DATA (f)->current_cursor = cursor;
+  host_notify ("{\"type\":\"redraw\"}");
 }
 
 static void

@@ -45,6 +45,9 @@ extern void host_claim_input (bool (*is_input) (const char *),
    or null if there is none.  */
 extern char *host_take_input (void);
 
+/* Say to Lisp what C has done, as though the host had said it.  */
+extern void host_notify (const char *message);
+
 /* Find the host as Emacs starts, and give Lisp what it has of it.
    Called from emacs.c on every system.  */
 extern void init_host (void);

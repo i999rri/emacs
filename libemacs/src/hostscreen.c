@@ -37,6 +37,14 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "font.h"
 #include "hostlib.h"
 
+/* For what the pointer is over, which each window system keeps in the
+   display it belongs to.  A frame on no window system keeps it in its
+   terminal, and MOUSE_HL_INFO reaches for both.  */
+#include "termchar.h"
+#ifdef HAVE_WINDOW_SYSTEM
+#include TERM_HEADER
+#endif
+
 /* The face a run was drawn in, as the attributes that decide how it
    looks.  The family and the size are of the font redisplay settled
    on, which is not the family of the face when the face has no glyph
@@ -67,6 +75,48 @@ host_run_face (struct frame *f, int face_id)
 	       QCunderline, face->lface[LFACE_UNDERLINE_INDEX],
 	       QCfamily, family,
 	       QCsize, size);
+}
+
+/* Which of the glyphs of a row the pointer is over, as columns from
+   FROM up to but not including TO, and the face they are drawn in.
+
+   Redisplay does not put that face in the matrix: it draws the glyphs
+   again with it when the pointer arrives and puts the old ones back
+   when it leaves, which a host drawing from the matrix never sees.  */
+
+struct host_mouse_face
+{
+  int from, to, face_id;
+};
+
+static struct host_mouse_face
+host_row_mouse_face (struct frame *f, Lisp_Object window, int vpos, int used)
+{
+  Mouse_HLInfo *hlinfo = MOUSE_HL_INFO (f);
+  struct host_mouse_face over = { -1, -1, DEFAULT_FACE_ID };
+
+  if (hlinfo->mouse_face_hidden
+      || !EQ (hlinfo->mouse_face_window, window)
+      || vpos < hlinfo->mouse_face_beg_row
+      || vpos > hlinfo->mouse_face_end_row)
+    return over;
+
+  over.from = (vpos == hlinfo->mouse_face_beg_row
+	       ? hlinfo->mouse_face_beg_col : 0);
+  over.to = (vpos == hlinfo->mouse_face_end_row && !hlinfo->mouse_face_past_end
+	     ? hlinfo->mouse_face_end_col : used);
+  over.face_id = hlinfo->mouse_face_face_id;
+  return over;
+}
+
+/* The face glyph AT of a row is drawn in, which is the mouse face
+   where the pointer is over it.  */
+
+static int
+host_glyph_face (struct glyph *glyphs, int at, struct host_mouse_face over)
+{
+  return (over.from >= 0 && at >= over.from && at < over.to
+	  ? over.face_id : glyphs[at].face_id);
 }
 
 /* One run of text drawn at X, WIDTH pixels wide, in the face FACE_ID.
@@ -164,7 +214,10 @@ drawn WINDOW yet.  */)
   struct window *w = decode_live_window (window);
   struct frame *f = XFRAME (w->frame);
   struct glyph_matrix *matrix = w->current_matrix;
+  Lisp_Object window_object = Qnil;
   Lisp_Object lines = Qnil;
+
+  XSETWINDOW (window_object, w);
   char *text;
   USE_SAFE_ALLOCA;
 
@@ -199,9 +252,12 @@ drawn WINDOW yet.  */)
       int x = row->x + (row->full_width_p
 			? 0 : window_box_left_offset (w, TEXT_AREA));
       int start = 0;
+      struct host_mouse_face over;
 
       if (!row->enabled_p)
 	continue;
+
+      over = host_row_mouse_face (f, window_object, i, used);
 
       /* A run ends where the face changes, where text gives way to what
 	 is not text or the other way about, and where the characters
@@ -210,7 +266,7 @@ drawn WINDOW yet.  */)
 	 one width at a time.  */
       while (start < used)
 	{
-	  int face_id = glyphs[start].face_id;
+	  int face_id = host_glyph_face (glyphs, start, over);
 	  bool texts = glyphs[start].type == CHAR_GLYPH;
 
 	  if (glyphs[start].type == IMAGE_GLYPH)
@@ -227,7 +283,7 @@ drawn WINDOW yet.  */)
 	  int end = start;
 
 	  while (end < used
-		 && glyphs[end].face_id == face_id
+		 && host_glyph_face (glyphs, end, over) == face_id
 		 && glyphs[end].type != IMAGE_GLYPH
 		 && (glyphs[end].type == CHAR_GLYPH) == texts
 		 && (!texts || glyphs[end].pixel_width == advance))
@@ -319,6 +375,48 @@ WINDOW defaults to the selected one.  */)
 	       make_fixnum (row->extra_line_spacing_above));
 }
 
+DEFUN ("frame-screen-pointer", Fframe_screen_pointer, Sframe_screen_pointer,
+       0, 1, 0,
+       doc: /* Return the shape the pointer is to take over FRAME.
+
+Redisplay chooses it as the pointer moves: a hand over something that
+can be clicked, a bar over text, an arrow elsewhere.  Drawing it is the
+host's, which has the pointer; this is what to tell it.
+
+One of `arrow', `text', `hand', `busy', `horizontal-drag',
+`vertical-drag', or the name of an edge or a corner.  FRAME defaults to
+the selected one.  */)
+  (Lisp_Object frame)
+{
+#ifdef HAVE_HOST
+  struct frame *f = decode_live_frame (frame);
+
+  if (!FRAME_HOST_P (f))
+    return Qnil;
+
+  switch (HOST_POINTER_OF (FRAME_OUTPUT_DATA (f)->current_cursor))
+    {
+    case HOST_POINTER_ARROW: return Qarrow;
+    case HOST_POINTER_TEXT: return Qtext;
+    case HOST_POINTER_HAND: return Qhand;
+    case HOST_POINTER_BUSY: return Qbusy;
+    case HOST_POINTER_HORIZONTAL_DRAG: return Qhorizontal_drag;
+    case HOST_POINTER_VERTICAL_DRAG: return Qvertical_drag;
+    case HOST_POINTER_LEFT_EDGE: return Qleft_edge;
+    case HOST_POINTER_TOP_LEFT_CORNER: return Qtop_left_corner;
+    case HOST_POINTER_TOP_EDGE: return Qtop_edge;
+    case HOST_POINTER_TOP_RIGHT_CORNER: return Qtop_right_corner;
+    case HOST_POINTER_RIGHT_EDGE: return Qright_edge;
+    case HOST_POINTER_BOTTOM_RIGHT_CORNER: return Qbottom_right_corner;
+    case HOST_POINTER_BOTTOM_EDGE: return Qbottom_edge;
+    case HOST_POINTER_BOTTOM_LEFT_CORNER: return Qbottom_left_corner;
+    default: return Qnil;
+    }
+#else
+  return Qnil;
+#endif
+}
+
 void
 syms_of_hostscreen (void)
 {
@@ -330,9 +428,24 @@ syms_of_hostscreen (void)
   DEFSYM (QCruns, ":runs");
   DEFSYM (QCkind, ":kind");
   DEFSYM (QCstart, ":start");
+  DEFSYM (Qarrow, "arrow");
+  DEFSYM (Qtext, "text");
+  DEFSYM (Qhand, "hand");
+  DEFSYM (Qbusy, "busy");
+  DEFSYM (Qhorizontal_drag, "horizontal-drag");
+  DEFSYM (Qvertical_drag, "vertical-drag");
+  DEFSYM (Qleft_edge, "left-edge");
+  DEFSYM (Qtop_left_corner, "top-left-corner");
+  DEFSYM (Qtop_edge, "top-edge");
+  DEFSYM (Qtop_right_corner, "top-right-corner");
+  DEFSYM (Qright_edge, "right-edge");
+  DEFSYM (Qbottom_right_corner, "bottom-right-corner");
+  DEFSYM (Qbottom_edge, "bottom-edge");
+  DEFSYM (Qbottom_left_corner, "bottom-left-corner");
   DEFSYM (QCline_spacing, ":line-spacing");
   DEFSYM (QCline_spacing_above, ":line-spacing-above");
 
   defsubr (&Swindow_screen_rows);
   defsubr (&Swindow_screen_cursor);
+  defsubr (&Sframe_screen_pointer);
 }
