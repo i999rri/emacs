@@ -77,46 +77,64 @@ host_run_face (struct frame *f, int face_id)
 	       QCsize, size);
 }
 
-/* Which of the glyphs of a row the pointer is over, as columns from
-   FROM up to but not including TO, and the face they are drawn in.
+/* What a run would look like were the pointer over it, or nothing
+   where it would look the same.
 
-   Redisplay does not put that face in the matrix: it draws the glyphs
-   again with it when the pointer arrives and puts the old ones back
-   when it leaves, which a host drawing from the matrix never sees.  */
+   Emacs puts a `mouse-face' on the text that lights up under the
+   pointer; where the pointer is is the window's to know, and it can
+   show it without asking, so both are said here at once.
 
-struct host_mouse_face
+   Only text carrying a `mouse-face' answers.  Asking for the face of
+   text that has none gives the default face rather than nothing, so
+   without this the window would be told that every run it draws turns
+   plain under the pointer.  */
+
+static Lisp_Object
+host_hover_face (struct window *w, struct frame *f, struct glyph *glyph, int face_id)
 {
-  int from, to, face_id;
-};
+  Lisp_Object object = glyph->object;
+  Lisp_Object position = make_fixnum (glyph->charpos);
+  ptrdiff_t ignore;
+  struct face *face;
+  int hover;
 
-static struct host_mouse_face
-host_row_mouse_face (struct frame *f, Lisp_Object window, int vpos, int used)
-{
-  Mouse_HLInfo *hlinfo = MOUSE_HL_INFO (f);
-  struct host_mouse_face over = { -1, -1, DEFAULT_FACE_ID };
+  if (NILP (Vmouse_highlight))
+    return Qnil;
 
-  if (hlinfo->mouse_face_hidden
-      || !EQ (hlinfo->mouse_face_window, window)
-      || vpos < hlinfo->mouse_face_beg_row
-      || vpos > hlinfo->mouse_face_end_row)
-    return over;
+  if (STRINGP (object))
+    {
+      /* An overlay string, or what a `display' property put there; its
+	 own face is what the `mouse-face' is merged over.  */
+      if (glyph->charpos < 0 || glyph->charpos >= SCHARS (object)
+	  || NILP (Fget_text_property (position, Qmouse_face, object)))
+	return Qnil;
 
-  over.from = (vpos == hlinfo->mouse_face_beg_row
-	       ? hlinfo->mouse_face_beg_col : 0);
-  over.to = (vpos == hlinfo->mouse_face_end_row && !hlinfo->mouse_face_past_end
-	     ? hlinfo->mouse_face_end_col : used);
-  over.face_id = hlinfo->mouse_face_face_id;
-  return over;
-}
+      hover = face_at_string_position (w, object, glyph->charpos, 0, &ignore,
+				       face_id, true, 0);
+    }
+  else if (BUFFERP (object))
+    {
+      /* An overlay's `mouse-face' outranks the text property's, which
+	 `Fget_char_property' already settles.  */
+      if (glyph->charpos < BEGV || glyph->charpos >= ZV
+	  || NILP (Fget_char_property (position, Qmouse_face, object)))
+	return Qnil;
 
-/* The face glyph AT of a row is drawn in, which is the mouse face
-   where the pointer is over it.  */
+      hover = face_at_buffer_position (w, glyph->charpos, &ignore, glyph->charpos + 1,
+				       true, -1, 0);
+    }
+  else
+    return Qnil;
 
-static int
-host_glyph_face (struct glyph *glyphs, int at, struct host_mouse_face over)
-{
-  return (over.from >= 0 && at >= over.from && at < over.to
-	  ? over.face_id : glyphs[at].face_id);
+  if (hover == face_id)
+    return Qnil;
+
+  face = FACE_FROM_ID_OR_NULL (f, hover);
+  if (!face)
+    return Qnil;
+
+  return list (QChover_foreground, face->lface[LFACE_FOREGROUND_INDEX],
+	       QChover_background, face->lface[LFACE_BACKGROUND_INDEX]);
 }
 
 /* One run of text drawn at X, WIDTH pixels wide, in the face FACE_ID.
@@ -218,6 +236,11 @@ drawn WINDOW yet.  */)
   Lisp_Object lines = Qnil;
 
   XSETWINDOW (window_object, w);
+
+  /* A face is asked for in the buffer it is in.  */
+  struct buffer *was = current_buffer;
+  if (BUFFERP (w->contents))
+    set_buffer_internal_1 (XBUFFER (w->contents));
   char *text;
   USE_SAFE_ALLOCA;
 
@@ -252,12 +275,9 @@ drawn WINDOW yet.  */)
       int x = row->x + (row->full_width_p
 			? 0 : window_box_left_offset (w, TEXT_AREA));
       int start = 0;
-      struct host_mouse_face over;
 
       if (!row->enabled_p)
 	continue;
-
-      over = host_row_mouse_face (f, window_object, i, used);
 
       /* A run ends where the face changes, where text gives way to what
 	 is not text or the other way about, and where the characters
@@ -266,7 +286,7 @@ drawn WINDOW yet.  */)
 	 one width at a time.  */
       while (start < used)
 	{
-	  int face_id = host_glyph_face (glyphs, start, over);
+	  int face_id = glyphs[start].face_id;
 	  bool texts = glyphs[start].type == CHAR_GLYPH;
 
 	  if (glyphs[start].type == IMAGE_GLYPH)
@@ -283,7 +303,7 @@ drawn WINDOW yet.  */)
 	  int end = start;
 
 	  while (end < used
-		 && host_glyph_face (glyphs, end, over) == face_id
+		 && glyphs[end].face_id == face_id
 		 && glyphs[end].type != IMAGE_GLYPH
 		 && (glyphs[end].type == CHAR_GLYPH) == texts
 		 && (!texts || glyphs[end].pixel_width == advance))
@@ -300,9 +320,14 @@ drawn WINDOW yet.  */)
 	      end++;
 	    }
 
-	  runs = Fcons (host_run (f, face_id, x, width,
-				  texts ? text : NULL, nchars, nbytes),
-			runs);
+	  {
+	    Lisp_Object run = host_run (f, face_id, x, width,
+					texts ? text : NULL, nchars, nbytes);
+
+	    if (texts)
+	      run = nconc2 (run, host_hover_face (w, f, &glyphs[start], face_id));
+	    runs = Fcons (run, runs);
+	  }
 	  x += width;
 	  start = end;
 	}
@@ -324,6 +349,7 @@ drawn WINDOW yet.  */)
 		     lines);
     }
 
+  set_buffer_internal_1 (was);
   SAFE_FREE ();
   return Fnreverse (lines);
 }
@@ -428,6 +454,8 @@ syms_of_hostscreen (void)
   DEFSYM (QCruns, ":runs");
   DEFSYM (QCkind, ":kind");
   DEFSYM (QCstart, ":start");
+  DEFSYM (QChover_foreground, ":hover-foreground");
+  DEFSYM (QChover_background, ":hover-background");
   DEFSYM (Qarrow, "arrow");
   DEFSYM (Qtext, "text");
   DEFSYM (Qhand, "hand");

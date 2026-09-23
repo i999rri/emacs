@@ -709,10 +709,6 @@ host_pointer (struct host_input *input, struct frame *f,
     {
       /* What the pointer is over, for the mouse face and the help
 	 echo, and that it moved, for a drag with `track-mouse'.  */
-      Lisp_Object was_over = hlinfo->mouse_face_window;
-      int was_beg = hlinfo->mouse_face_beg_col;
-      int was_end = hlinfo->mouse_face_end_col;
-      int was_row = hlinfo->mouse_face_beg_row;
 
       previous_help_echo_string = help_echo_string;
       help_echo_string = Qnil;
@@ -723,23 +719,6 @@ host_pointer (struct host_input *input, struct frame *f,
 	 this nothing lights up under it once anything has been typed.  */
       frame_make_pointer_visible (f);
       note_mouse_highlight (f, x, y);
-
-      /* Redisplay draws the mouse face as it draws, over glyphs it has
-	 already put in the matrix; a window that draws from the matrix
-	 is told to read it again instead.  Only where it changed: the
-	 pointer crosses a window far more often than it crosses what
-	 lights up under it.  */
-      if (!EQ (was_over, hlinfo->mouse_face_window)
-	  || was_beg != hlinfo->mouse_face_beg_col
-	  || was_end != hlinfo->mouse_face_end_col
-	  || was_row != hlinfo->mouse_face_beg_row)
-	{
-	  if (WINDOWP (was_over))
-	    wset_redisplay (XWINDOW (was_over));
-	  if (WINDOWP (hlinfo->mouse_face_window))
-	    wset_redisplay (XWINDOW (hlinfo->mouse_face_window));
-	  host_notify ("{\"type\":\"redraw\"}");
-	}
 
       if (!NILP (help_echo_string) || !NILP (previous_help_echo_string))
 	*help = 1;
