@@ -759,6 +759,13 @@ host_draw_glyph_string (struct glyph_string *s)
 {
   bool box_drawn_p = false;
 
+  /* The room for a tab line is Emacs's to keep and another's to draw
+     in, where whatever draws the frame says so: it puts something of
+     its own there, and a tab line drawn under that would be a line
+     sent every time it changed and never seen.  */
+  if (!host_draw_tab_lines && s->row->tab_line_p)
+    return;
+
   host_set_glyph_string_colors (s);
 
   /* A box around text is drawn first, so that the text is drawn over
@@ -1250,6 +1257,13 @@ syms_of_hostterm (void)
 
   /* Every window system has these, and cus-start.el expects them of
      one that has `x-create-frame'.  */
+  DEFVAR_BOOL ("host-draw-tab-lines", host_draw_tab_lines,
+    doc: /* Whether Emacs draws the tab line of a window.
+Nil leaves the room it keeps for one alone, for a host that draws
+something of its own there.  Emacs keeps the room either way: how much
+there is is the face `tab-line''s to say.  */);
+  host_draw_tab_lines = true;
+
   DEFVAR_BOOL ("x-use-underline-position-properties",
 	       x_use_underline_position_properties,
      doc: /* SKIP: real doc in xterm.c.  */);
