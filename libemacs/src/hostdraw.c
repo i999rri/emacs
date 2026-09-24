@@ -406,13 +406,26 @@ host_base64 (char *to, unsigned char const *from, ptrdiff_t length)
   return to;
 }
 
+/* The name Lisp knows F by, which is what names the element its
+   picture is shown in (`urusi-screen--frame-name').  */
+
+static void
+host_frame_name (struct frame *f, char *name, size_t room)
+{
+  Lisp_Object frame;
+
+  XSETFRAME (frame, f);
+  snprintf (name, room, "%lx",
+	    (unsigned long) XUFIXNUM (Fsxhash_eq (frame)));
+}
+
 /* Give the host the part of F's picture drawn into since it was last
    given any, and take that there is now nothing to give.
 
    Said to the host rather than to Lisp: it is a picture, and there is
-   nothing in it for Lisp to decide.  Only the frame being drawn is
-   sent, which is the one the host shows; a child frame has its own
-   picture and is still to be sent.  */
+   nothing in it for Lisp to decide.  Every frame has a picture of its
+   own and is named in what is sent, so that a child frame floating
+   over another is shown over it.  */
 
 void
 host_show_picture (struct frame *f)
@@ -424,10 +437,13 @@ host_show_picture (struct frame *f)
   ptrdiff_t bytes = (ptrdiff_t) width * height * sizeof *picture->cells;
   unsigned char *box;
   char *message, *at;
+  char name[32];
   int row;
 
   if (!api || !picture->cells || width <= 0 || height <= 0)
     return;
+
+  host_frame_name (f, name, sizeof name);
 
   /* The box on its own, since base64 has to read it a row at a time
      and the picture is wider than the box.  */
@@ -437,12 +453,13 @@ host_show_picture (struct frame *f)
 	    picture->cells + (ptrdiff_t) (y + row) * picture->width + x,
 	    (ptrdiff_t) width * sizeof *picture->cells);
 
-  message = xmalloc (128 + 4 * ((bytes + 2) / 3) + 4);
+  message = xmalloc (192 + 4 * ((bytes + 2) / 3) + 4);
   at = message + sprintf (message,
-			  "{\"type\":\"picture\",\"width\":%d,\"height\":%d,"
+			  "{\"type\":\"picture\",\"frame\":\"%s\","
+			  "\"width\":%d,\"height\":%d,"
 			  "\"drawn\":{\"x\":%d,\"y\":%d,"
 			  "\"width\":%d,\"height\":%d},\"cells\":\"",
-			  picture->width, picture->height,
+			  name, picture->width, picture->height,
 			  x, y, width, height);
   at = host_base64 (at, box, bytes);
   strcpy (at, "\"}");
