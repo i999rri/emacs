@@ -1468,6 +1468,11 @@ struct glyph_string
 #if defined (HAVE_PGTK)
   Emacs_GC xgcv;
 #endif
+#if defined (HAVE_HOST)
+  /* The colors to draw this glyph string in, which is what the
+     graphics context holds on the window systems that have one.  */
+  unsigned long foreground, background;
+#endif
 
   /* A pointer to the first glyph in the string.  This glyph
      corresponds to char2b[0].  Needed to draw rectangles if

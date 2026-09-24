@@ -135,9 +135,35 @@ enum host_pointer
 #define HOST_CURSOR(shape) ((Emacs_Cursor) (intptr_t) (shape))
 #define HOST_POINTER_OF(cursor) ((enum host_pointer) (intptr_t) (cursor))
 
+/* The pixels of a frame, which redisplay draws into and the host is
+   handed to show (hostdraw.c).  */
+
+struct host_picture
+{
+  /* WIDTH by HEIGHT pixels, a row at a time, each 0xAARRGGBB.  */
+  unsigned int *cells;
+  int width, height;
+
+  /* The box drawn into since the host was last given the picture, as
+     the smallest one that holds all of them; empty where nothing has
+     been drawn.  Only that much is worth handing over.  */
+  int drawn_x, drawn_y, drawn_width, drawn_height;
+};
+
+extern struct host_picture *host_frame_picture (struct frame *);
+extern void host_free_picture (struct frame *);
+extern void host_forget_drawn (struct frame *);
+extern void host_fill_area (struct frame *, int, int, int, int, unsigned long);
+extern void host_blend_coverage (struct frame *, unsigned char const *, int,
+				 int, int, int, int, unsigned long);
+extern void host_show_picture (struct frame *);
+
 struct host_output
 {
   struct host_display_info *display_info;
+
+  /* What redisplay drew, for the host to show.  */
+  struct host_picture picture;
 
   /* The pointer shapes redisplay chooses between as the pointer moves
      over the frame, and the one it last chose.  */

@@ -296,9 +296,91 @@ host_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 {
 }
 
+/* The colors S is to be drawn in, which is what a graphics context
+   holds on the window systems that have one: for most text the face's
+   own, and for the cursor a pair that stands out against it.  */
+
+static void
+host_set_glyph_string_colors (struct glyph_string *s)
+{
+  prepare_face_for_display (s->f, s->face);
+
+  s->foreground = s->face->foreground;
+  s->background = s->face->background;
+  s->stippled_p = s->face->stipple != 0;
+
+  if (s->hl != DRAW_CURSOR)
+    return;
+
+  s->stippled_p = false;
+  s->background = FRAME_OUTPUT_DATA (s->f)->cursor_pixel;
+  s->foreground = s->face->background;
+
+  /* The glyph would be invisible drawn in the color behind it, so
+     something else is tried until one of them tells apart.  */
+  if (s->foreground == s->background)
+    s->foreground = s->face->foreground;
+  if (s->foreground == s->background)
+    s->foreground = FRAME_FOREGROUND_PIXEL (s->f);
+
+  /* Nothing would mark the cursor out from the text it is on, so the
+     face is turned about instead.  */
+  if (s->background == s->face->background
+      && s->foreground == s->face->foreground)
+    {
+      s->background = s->face->foreground;
+      s->foreground = s->face->background;
+    }
+}
+
+/* Fill in what is behind S, which is the face's background over the
+   whole width the string was given.  */
+
+static void
+host_draw_glyph_string_background (struct glyph_string *s)
+{
+  int box = max (s->face->box_vertical_line_width, 0);
+
+  if (s->stippled_p || s->background_filled_p)
+    return;
+
+  host_fill_area (s->f, s->x, s->y + box, s->background_width,
+		  s->height - 2 * box, s->background);
+  s->background_filled_p = true;
+}
+
 static void
 host_draw_glyph_string (struct glyph_string *s)
 {
+  host_set_glyph_string_colors (s);
+
+  switch (s->first_glyph->type)
+    {
+    case STRETCH_GLYPH:
+      /* A stretch is its background and nothing else.  */
+      host_fill_area (s->f, s->x, s->y, s->background_width, s->height,
+		      s->background);
+      s->background_filled_p = true;
+      break;
+
+    case CHAR_GLYPH:
+    case COMPOSITE_GLYPH:
+      /* Drawn over what is already there when it is only the part of
+	 a glyph that reaches into another row.  */
+      if (s->for_overlaps)
+	s->background_filled_p = true;
+      else
+	host_draw_glyph_string_background (s);
+
+      if (s->font)
+	s->font->driver->draw (s, 0, s->nchars, s->x, s->ybase, false);
+      break;
+
+    default:
+      /* Images, xwidgets and glyphless characters are still to be
+	 drawn; their rows come out blank until they are.  */
+      break;
+    }
 }
 
 /* The shape the pointer is to take over F, which redisplay chose as it
@@ -320,6 +402,7 @@ host_define_frame_cursor (struct frame *f, Emacs_Cursor cursor)
 static void
 host_clear_frame_area (struct frame *f, int x, int y, int width, int height)
 {
+  host_fill_area (f, x, y, width, height, FRAME_BACKGROUND_PIXEL (f));
 }
 
 static void
@@ -406,7 +489,7 @@ static struct redisplay_interface host_redisplay_interface =
     host_after_update_window_line,
     NULL, /* update_window_begin */
     NULL, /* update_window_end */
-    NULL, /* flush_display */
+    host_show_picture,
     gui_clear_window_mouse_face,
     gui_get_glyph_overhangs,
     gui_fix_overlapping_area,

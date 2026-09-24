@@ -19,11 +19,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* The fonts of a host frame are the font engine Emacs has for Android
    (sfnt.c, sfntfont.c), which reads TrueType files itself and needs
-   nothing of the system.  Here it only measures: the host draws the
-   text in its own fonts, and Emacs has to lay the text out in the
-   same widths, so the glyphs it would draw are never drawn.  This is
-   sfntfont-android.c without the drawing, and with the font files
-   looked for where the systems a host runs on keep them.  */
+   nothing of the system.  It both measures and draws, so the text is
+   laid out and drawn by the same measurements, and the host is handed
+   a picture rather than asked to arrive at them again.  This is
+   sfntfont-android.c drawing into that picture, and with the font
+   files looked for where the systems a host runs on keep them.  */
 
 #include <config.h>
 
@@ -54,15 +54,43 @@ sfntfont_host_get_cache (struct frame *f)
   return font_cache;
 }
 
-/* Nothing draws: the host draws the text.  This is only called for a
-   glyph string that redisplay draws, and the redisplay interface
-   draws none (hostterm.c).  */
+/* Draw the glyphs FROM up to TO of S into the picture of its frame,
+   with X, Y where the first of them sits on the baseline.
+
+   RASTERS hold how much of each pixel the glyph covers, and X_COORDS
+   where each one goes, which the engine worked out from the same
+   advances redisplay laid the text out by.  The color of the text is
+   laid on by the coverage (hostdraw.c).  */
 
 static void
 sfntfont_host_put_glyphs (struct glyph_string *s, int from, int to,
 			  int x, int y, bool with_background,
 			  struct sfnt_raster **rasters, int *x_coords)
 {
+  int i;
+
+  if (from == to)
+    return;
+
+  prepare_face_for_display (s->f, s->face);
+
+  if (with_background)
+    host_fill_area (s->f, x, y - FONT_BASE (s->font), s->width,
+		    FONT_HEIGHT (s->font), s->background);
+
+  for (i = 0; i < to - from; ++i)
+    {
+      if (!rasters[i])
+	continue;
+
+      /* A negative `offy' is how far the glyph reaches below the
+	 baseline, so the top of the raster is that much above it.  */
+      host_blend_coverage (s->f, rasters[i]->cells, rasters[i]->stride,
+			   rasters[i]->width, rasters[i]->height,
+			   x_coords[i] + rasters[i]->offx,
+			   y - (rasters[i]->height + rasters[i]->offy),
+			   s->foreground);
+    }
 }
 
 const struct font_driver host_sfntfont_driver =
