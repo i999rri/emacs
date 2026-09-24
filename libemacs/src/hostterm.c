@@ -30,6 +30,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
+#include <stdlib.h>
+
 #include "lisp.h"
 #include "blockinput.h"
 #include "keyboard.h"
@@ -290,10 +292,49 @@ host_after_update_window_line (struct window *w,
 {
 }
 
+/* Draw the bitmap P says goes in the fringe of W beside ROW, which
+   marks a line as continued, as truncated, as empty, and whatever else
+   a bitmap has been put there for.  */
+
 static void
 host_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 			 struct draw_fringe_bitmap_params *p)
 {
+  struct frame *f = XFRAME (WINDOW_FRAME (w));
+  struct face *face = p->face;
+  int row_y;
+
+  /* Within the row, so that a bitmap taller than the row it belongs to
+     does not reach into the next.  */
+  row_y = max (WINDOW_TO_FRAME_PIXEL_Y (w, max (0, row->y)),
+	       WINDOW_TOP_EDGE_Y (w));
+  host_set_clip (f, min (p->x, p->bx >= 0 ? p->bx : p->x), row_y,
+		 max (p->wd, p->bx >= 0 ? p->nx : 0)
+		 + (p->bx >= 0 ? abs (p->x - p->bx) : 0),
+		 row->visible_height);
+
+  /* The part of the fringe with no bitmap on it, cleared to the
+     fringe's own background.  */
+  if (p->bx >= 0 && !p->overlay_p)
+    host_fill_area (f, p->bx, p->by, p->nx, p->ny, face->background);
+
+  if (p->which && p->bits)
+    {
+      unsigned short *bits = p->bits + p->dh;
+      unsigned long color = (p->cursor_p
+			     ? FRAME_OUTPUT_DATA (f)->cursor_pixel
+			     : face->foreground);
+      int line, column;
+
+      /* A bitmap is a bit to a pixel and a row of it to a short, with
+	 the leftmost pixel in the highest bit.  */
+      for (line = 0; line < p->h; line++)
+	for (column = 0; column < p->wd; column++)
+	  if (bits[line] & (1 << (p->wd - 1 - column)))
+	    host_fill_area (f, p->x + column, p->y + line, 1, 1, color);
+    }
+
+  host_reset_clip (f);
 }
 
 /* The colors S is to be drawn in, which is what a graphics context
@@ -349,10 +390,390 @@ host_draw_glyph_string_background (struct glyph_string *s)
   s->background_filled_p = true;
 }
 
+/* Keep drawing of S within the part of the window it may reach, which
+   is the row it is in, cut down by whatever `draw_glyphs' asked for.  */
+
+static void
+host_set_glyph_string_clipping (struct glyph_string *s)
+{
+  NativeRectangle box;
+
+  get_glyph_string_clip_rect (s, &box);
+  host_set_clip (s->f, box.x, box.y, box.width, box.height);
+}
+
+/* Return COLOR lightened or darkened by FACTOR, which is what a raised
+   or sunken box is drawn with: a face names one color for its box, and
+   the two edges are that color moved towards white and towards black.  */
+
+static unsigned long
+host_shaded (unsigned long color, double factor)
+{
+  int part[3], i;
+
+  part[0] = RED_FROM_ULONG (color);
+  part[1] = GREEN_FROM_ULONG (color);
+  part[2] = BLUE_FROM_ULONG (color);
+
+  for (i = 0; i < 3; i++)
+    {
+      double moved = part[i] * factor;
+
+      /* A color that is already at one end cannot be moved further
+	 that way, so it is moved towards the middle instead and the
+	 edge is still told apart from the face.  */
+      if (moved > 255)
+	moved = 255;
+      if (factor > 1 && part[i] < 16)
+	moved = 32;
+      part[i] = (int) moved;
+    }
+
+  return RGB_TO_ULONG (part[0], part[1], part[2]);
+}
+
+/* Draw the box of S between LEFT_X, TOP_Y and RIGHT_X, BOTTOM_Y, whose
+   lines are HWIDTH pixels high and VWIDTH wide.  LEFT_P and RIGHT_P
+   say whether the box is closed at each end: a box around text that
+   runs on into the next glyph string is not.  */
+
+static void
+host_draw_box_rect (struct glyph_string *s, int left_x, int top_y,
+		    int right_x, int bottom_y, int hwidth, int vwidth,
+		    bool left_p, bool right_p)
+{
+  unsigned long color = s->face->box_color;
+
+  host_set_glyph_string_clipping (s);
+
+  host_fill_area (s->f, left_x, top_y, right_x - left_x + 1, hwidth, color);
+  if (left_p)
+    host_fill_area (s->f, left_x, top_y, vwidth, bottom_y - top_y + 1, color);
+  host_fill_area (s->f, left_x, bottom_y - hwidth + 1, right_x - left_x + 1,
+		  hwidth, color);
+  if (right_p)
+    host_fill_area (s->f, right_x - vwidth + 1, top_y, vwidth,
+		    bottom_y - top_y + 1, color);
+
+  host_reset_clip (s->f);
+}
+
+/* Draw the box of S as one standing out of the screen, or sunk into
+   it, which is the same box with its edges in two colors: the light
+   falls on the top and the left of a raised box and on the bottom and
+   the right of a sunken one.  */
+
+static void
+host_draw_relief_rect (struct glyph_string *s, int left_x, int top_y,
+		       int right_x, int bottom_y, int hwidth, int vwidth,
+		       bool raised_p, bool left_p, bool right_p)
+{
+  unsigned long color = (s->face->use_box_color_for_shadows_p
+			 ? s->face->box_color
+			 : s->face->background);
+  unsigned long lit = host_shaded (color, 1.35);
+  unsigned long shade = host_shaded (color, 0.6);
+  unsigned long top = raised_p ? lit : shade;
+  unsigned long bottom = raised_p ? shade : lit;
+
+  host_set_glyph_string_clipping (s);
+
+  host_fill_area (s->f, left_x, top_y, right_x - left_x + 1, hwidth, top);
+  if (left_p)
+    host_fill_area (s->f, left_x, top_y, vwidth, bottom_y - top_y + 1, top);
+  host_fill_area (s->f, left_x, bottom_y - hwidth + 1, right_x - left_x + 1,
+		  hwidth, bottom);
+  if (right_p)
+    host_fill_area (s->f, right_x - vwidth + 1, top_y, vwidth,
+		    bottom_y - top_y + 1, bottom);
+
+  host_reset_clip (s->f);
+}
+
+/* Draw the box the face of S asks for around it.  */
+
+static void
+host_draw_glyph_string_box (struct glyph_string *s)
+{
+  int hwidth, vwidth, left_x, right_x, top_y, bottom_y, last_x;
+  bool raised_p, left_p, right_p;
+  struct glyph *last_glyph;
+
+  last_x = (s->row->full_width_p && !s->w->pseudo_window_p
+	    ? WINDOW_RIGHT_EDGE_X (s->w)
+	    : window_box_right (s->w, s->area));
+
+  /* Which glyph may carry the right line of the box: the first, for a
+     composition or an image, and the last for anything else.  */
+  if (s->cmp || s->img)
+    last_glyph = s->first_glyph;
+  else if (s->first_glyph->type == COMPOSITE_GLYPH
+	   && s->first_glyph->u.cmp.automatic)
+    {
+      struct glyph *end = s->row->glyphs[s->area] + s->row->used[s->area];
+      struct glyph *g = s->first_glyph;
+
+      for (last_glyph = g++;
+	   g < end && g->u.cmp.automatic && g->u.cmp.id == s->cmp_id
+	     && g->slice.cmp.to < s->cmp_to;
+	   last_glyph = g++)
+	;
+    }
+  else
+    last_glyph = s->first_glyph + s->nchars - 1;
+
+  vwidth = eabs (s->face->box_vertical_line_width);
+  hwidth = eabs (s->face->box_horizontal_line_width);
+  raised_p = s->face->box == FACE_RAISED_BOX;
+  left_x = s->x;
+  right_x = (s->row->full_width_p && s->extends_to_end_of_line_p
+	     ? last_x - 1
+	     : min (last_x, s->x + s->background_width) - 1);
+  top_y = s->y;
+  bottom_y = top_y + s->height - 1;
+
+  left_p = (s->first_glyph->left_box_line_p
+	    || (s->hl == DRAW_MOUSE_FACE
+		&& (s->prev == NULL || s->prev->hl != s->hl)));
+  right_p = (last_glyph->right_box_line_p
+	     || (s->hl == DRAW_MOUSE_FACE
+		 && (s->next == NULL || s->next->hl != s->hl)));
+
+  if (s->face->box == FACE_SIMPLE_BOX)
+    host_draw_box_rect (s, left_x, top_y, right_x, bottom_y, hwidth, vwidth,
+			left_p, right_p);
+  else
+    host_draw_relief_rect (s, left_x, top_y, right_x, bottom_y, hwidth,
+			   vwidth, raised_p, left_p, right_p);
+}
+
+/* Draw a line of dashes SEGMENT pixels long and as far apart under S,
+   WIDTH pixels of it, OFFSET below the baseline and THICKNESS thick.  */
+
+static void
+host_draw_dash (struct glyph_string *s, int width, int segment, int offset,
+		int thickness, unsigned long color)
+{
+  int at;
+
+  for (at = 0; at < width; at += segment * 2)
+    host_fill_area (s->f, s->x + at, s->ybase + offset,
+		    min (segment, width - at), thickness, color);
+}
+
+/* Draw the underline of S in the style the face asks for, POSITION
+   below the baseline, WIDTH pixels of it and THICKNESS thick.  */
+
+static void
+host_fill_underline (struct glyph_string *s, enum face_underline_type style,
+		     int position, int width, int thickness,
+		     unsigned long color)
+{
+  switch (style)
+    {
+      /* A double line is two of these, drawn one call after another.  */
+    case FACE_UNDERLINE_SINGLE:
+    case FACE_UNDERLINE_DOUBLE_LINE:
+      host_fill_area (s->f, s->x, s->ybase + position, width, thickness,
+		      color);
+      break;
+
+    case FACE_UNDERLINE_DOTS:
+      host_draw_dash (s, width, thickness, position, thickness, color);
+      break;
+
+    case FACE_UNDERLINE_DASHES:
+      host_draw_dash (s, width, thickness * 3, position, thickness, color);
+      break;
+
+    case FACE_NO_UNDERLINE:
+    case FACE_UNDERLINE_WAVE:
+    default:
+      emacs_abort ();
+    }
+}
+
+/* Draw the wave under S, WIDTH pixels of it, which is what marks
+   misspelt text and the like.  */
+
+static void
+host_draw_underwave (struct glyph_string *s, int width, unsigned long color)
+{
+  int height = 3, length = 2;
+  int dy = height - 1;
+  int x0 = s->x, y0 = s->ybase + height / 2;
+  int xmax = x0 + width;
+  int x1, x2, y1, y2;
+  bool odd;
+
+  host_set_clip (s->f, x0, y0, width, height);
+
+  /* From the last turn of the wave before the string, so that a wave
+     under text drawn in more than one piece is one wave.  */
+  x1 = x0 - x0 % length;
+  x2 = x1 + length;
+  odd = (x1 / length) & 1;
+  y1 = y2 = y0;
+
+  if (odd)
+    y1 += dy;
+  else
+    y2 += dy;
+
+  while (x1 <= xmax)
+    {
+      host_draw_line (s->f, x1, y1, x2, y2, color);
+      x1 = x2, y1 = y2;
+      x2 += length, y2 = y0 + (odd ? 0 : dy);
+      odd = !odd;
+    }
+
+  host_reset_clip (s->f);
+}
+
+/* Draw what the face of S puts around and through its text, once the
+   text itself is drawn.  */
+
+static void
+host_draw_glyph_string_decorations (struct glyph_string *s, bool box_drawn_p)
+{
+  int area_x, area_y, area_width, area_height, area_max_x, width;
+
+  /* Not past the area the text is in, nor into the fringe.  */
+  window_box (s->w, s->area, &area_x, &area_y, &area_width, &area_height);
+  area_max_x = area_x + area_width - 1;
+
+  width = s->width;
+  if (!s->row->mode_line_p && !s->row->tab_line_p
+      && area_max_x < s->x + width - 1)
+    width -= (s->x + width - 1) - area_max_x;
+
+  if (!box_drawn_p && s->face->box != FACE_NO_BOX)
+    host_draw_glyph_string_box (s);
+
+  if (s->face->underline)
+    {
+      unsigned long color = (s->face->underline_defaulted_p
+			     ? s->foreground
+			     : s->face->underline_color);
+
+      if (s->face->underline == FACE_UNDERLINE_WAVE)
+	host_draw_underwave (s, width, color);
+      else if (s->face->underline >= FACE_UNDERLINE_SINGLE)
+	{
+	  unsigned long thickness, position;
+
+	  /* Drawn the same as the piece before it, so that an
+	     underline under text drawn in several pieces is one
+	     line.  */
+	  if (s->prev
+	      && s->prev->face->underline != FACE_UNDERLINE_WAVE
+	      && s->prev->face->underline >= FACE_UNDERLINE_SINGLE
+	      && (s->prev->face->underline_at_descent_line_p
+		  == s->face->underline_at_descent_line_p)
+	      && (s->prev->face->underline_pixels_above_descent_line
+		  == s->face->underline_pixels_above_descent_line))
+	    {
+	      thickness = s->prev->underline_thickness;
+	      position = s->prev->underline_position;
+	    }
+	  else
+	    {
+	      struct font *font = font_for_underline_metrics (s);
+	      unsigned long minimum_offset;
+	      bool at_descent_line, from_the_font;
+	      Lisp_Object val;
+
+	      val = WINDOW_BUFFER_LOCAL_VALUE (Qunderline_minimum_offset, s->w);
+	      minimum_offset = FIXNUMP (val) ? max (0, XFIXNUM (val)) : 1;
+
+	      val = WINDOW_BUFFER_LOCAL_VALUE (Qx_underline_at_descent_line,
+					       s->w);
+	      at_descent_line = (!(NILP (val) || BASE_EQ (val, Qunbound))
+				 || s->face->underline_at_descent_line_p);
+
+	      val = WINDOW_BUFFER_LOCAL_VALUE
+		(Qx_use_underline_position_properties, s->w);
+	      from_the_font = !(NILP (val) || BASE_EQ (val, Qunbound));
+
+	      thickness = (font && font->underline_thickness > 0
+			   ? font->underline_thickness : 1);
+
+	      if (at_descent_line)
+		position = ((s->height - thickness) - (s->ybase - s->y)
+			    - s->face->underline_pixels_above_descent_line);
+	      else if (from_the_font && font && font->underline_position >= 0)
+		position = font->underline_position;
+	      else if (font)
+		position = (font->descent + 1) / 2;
+	      else
+		position = minimum_offset;
+
+	      /* How far down was asked for in pixels, and then it is
+		 not to be moved.  */
+	      if (!s->face->underline_pixels_above_descent_line)
+		position = max (position, minimum_offset);
+	    }
+
+	  /* Within the line: an underline below it would be drawn over
+	     the line under this one.  */
+	  if (s->y + s->height <= s->ybase + position)
+	    position = (s->height - 1) - (s->ybase - s->y);
+	  if (s->y + s->height < s->ybase + position + thickness)
+	    thickness = (s->y + s->height) - (s->ybase + position);
+
+	  s->underline_thickness = thickness;
+	  s->underline_position = position;
+
+	  host_fill_underline (s, s->face->underline, position, width,
+			       thickness, color);
+
+	  if (s->face->underline == FACE_UNDERLINE_DOUBLE_LINE)
+	    host_fill_underline (s, s->face->underline,
+				 position - thickness - 1, width, thickness,
+				 color);
+	}
+    }
+
+  if (s->face->overline_p)
+    host_fill_area (s->f, s->x, s->y, width, 1,
+		    (s->face->overline_color_defaulted_p
+		     ? s->foreground : s->face->overline_color));
+
+  if (s->face->strike_through_p)
+    {
+      /* Across the glyph rather than the string: the line the string
+	 is in may be taller than the text, where something else in it
+	 is drawn in a larger font.  */
+      int glyph_y = s->ybase - s->first_glyph->ascent;
+      int glyph_height = s->first_glyph->ascent + s->first_glyph->descent;
+
+      host_fill_area (s->f, s->x, glyph_y + (glyph_height - 1) / 2, width, 1,
+		      (s->face->strike_through_color_defaulted_p
+		       ? s->foreground : s->face->strike_through_color));
+    }
+}
+
 static void
 host_draw_glyph_string (struct glyph_string *s)
 {
+  bool box_drawn_p = false;
+
   host_set_glyph_string_colors (s);
+
+  /* A box around text is drawn first, so that the text is drawn over
+     it rather than cut short by it.  */
+  if (!s->for_overlaps && s->face->box != FACE_NO_BOX
+      && (s->first_glyph->type == CHAR_GLYPH
+	  || s->first_glyph->type == COMPOSITE_GLYPH))
+    {
+      host_set_glyph_string_clipping (s);
+      host_draw_glyph_string_background (s);
+      host_draw_glyph_string_box (s);
+      box_drawn_p = true;
+    }
+
+  host_set_glyph_string_clipping (s);
 
   switch (s->first_glyph->type)
     {
@@ -365,6 +786,7 @@ host_draw_glyph_string (struct glyph_string *s)
 
     case CHAR_GLYPH:
     case COMPOSITE_GLYPH:
+    case GLYPHLESS_GLYPH:
       /* Drawn over what is already there when it is only the part of
 	 a glyph that reaches into another row.  */
       if (s->for_overlaps)
@@ -372,15 +794,23 @@ host_draw_glyph_string (struct glyph_string *s)
       else
 	host_draw_glyph_string_background (s);
 
-      if (s->font)
+      /* A glyphless character has no glyph to draw; what marks it is
+	 the box its face puts around the room kept for it.  */
+      if (s->font && s->first_glyph->type != GLYPHLESS_GLYPH)
 	s->font->driver->draw (s, 0, s->nchars, s->x, s->ybase, false);
       break;
 
     default:
-      /* Images, xwidgets and glyphless characters are still to be
-	 drawn; their rows come out blank until they are.  */
+      /* Images and xwidgets are still to be drawn; the room kept for
+	 them comes out as their background until they are.  */
+      host_draw_glyph_string_background (s);
       break;
     }
+
+  if (!s->for_overlaps)
+    host_draw_glyph_string_decorations (s, box_drawn_p);
+
+  host_reset_clip (s->f);
 }
 
 /* The shape the pointer is to take over F, which redisplay chose as it
@@ -405,29 +835,227 @@ host_clear_frame_area (struct frame *f, int x, int y, int width, int height)
   host_fill_area (f, x, y, width, height, FRAME_BACKGROUND_PIXEL (f));
 }
 
+/* Keep drawing within the part of AREA of W that ROW is drawn in, as
+   the cursor is drawn.  */
+
+static void
+host_clip_to_row (struct window *w, struct glyph_row *row,
+		  enum glyph_row_area area)
+{
+  struct frame *f = XFRAME (WINDOW_FRAME (w));
+  int window_x, window_y, window_width;
+  int y;
+
+  window_box (w, area, &window_x, &window_y, &window_width, 0);
+
+  y = max (WINDOW_TO_FRAME_PIXEL_Y (w, max (0, row->y)), window_y);
+  host_set_clip (f, window_x, y, window_width, row->visible_height);
+}
+
+/* Draw the box a hollow cursor is around the glyph of W it is on, in
+   ROW.  */
+
+static void
+host_draw_hollow_cursor (struct window *w, struct glyph_row *row)
+{
+  struct frame *f = XFRAME (WINDOW_FRAME (w));
+  struct glyph *glyph = get_phys_cursor_glyph (w);
+  int x, y, width, height;
+
+  /* The matrix may say nothing usable about where the cursor is, and
+     then there is nothing to draw around.  */
+  if (!glyph)
+    return;
+
+  get_phys_cursor_geometry (w, row, glyph, &x, &y, &height);
+  width = w->phys_cursor_width - 1;
+
+  /* A character read right to left has the cursor at its right edge,
+     unless the box is as wide as the glyph or wider, which is what
+     `x-stretch-cursor' makes it.  */
+  if ((glyph->resolved_level & 1) != 0 && glyph->pixel_width > width)
+    {
+      x += glyph->pixel_width - width;
+      if (width > 0)
+	width -= 1;
+    }
+
+  host_clip_to_row (w, row, TEXT_AREA);
+  /* In the color of the cursor itself: what a filled cursor draws the
+     text in is the color behind it, which would leave no box.  */
+  host_draw_rectangle (f, x, y, width, height - 1,
+		       FRAME_OUTPUT_DATA (f)->cursor_pixel);
+  host_reset_clip (f);
+}
+
+/* Draw the bar a cursor of KIND is, WIDTH pixels of it, on the glyph
+   of W it is on in ROW.  */
+
+static void
+host_draw_bar_cursor (struct window *w, struct glyph_row *row, int width,
+		      enum text_cursor_kinds kind)
+{
+  struct frame *f = XFRAME (w->frame);
+  struct glyph *glyph = get_phys_cursor_glyph (w);
+  struct face *face;
+  unsigned long color;
+  int x;
+
+  /* Out of the window, as it is while the minibuffer and the echo area
+     change places; there would be nothing but garbage to draw.  */
+  if (!glyph || glyph->type == XWIDGET_GLYPH)
+    return;
+
+  /* On an image a bar may fall outside the window altogether, and a
+     cursor drawn as the glyph is seen wherever the image is.  */
+  if (glyph->type == IMAGE_GLYPH)
+    {
+      draw_phys_cursor_glyph (w, MATRIX_ROW (w->current_matrix,
+					     w->phys_cursor.vpos),
+			      DRAW_CURSOR);
+      return;
+    }
+
+  /* A bar in the color of the cursor is invisible on text drawn on
+     that color; the text is legible on what is behind it, so its own
+     color stands out there too.  */
+  face = FACE_FROM_ID (f, glyph->face_id);
+  color = (face->background == FRAME_OUTPUT_DATA (f)->cursor_pixel
+	   ? face->foreground
+	   : FRAME_OUTPUT_DATA (f)->cursor_pixel);
+
+  host_clip_to_row (w, row, TEXT_AREA);
+  x = WINDOW_TEXT_TO_FRAME_PIXEL_X (w, w->phys_cursor.x);
+
+  if (kind == BAR_CURSOR)
+    {
+      if (width < 0)
+	width = FRAME_CURSOR_WIDTH (f);
+      width = min (glyph->pixel_width, width);
+      w->phys_cursor_width = width;
+
+      /* A character read right to left has the bar at its right edge.  */
+      if ((glyph->resolved_level & 1) != 0)
+	x += glyph->pixel_width - width;
+
+      host_fill_area (f, x, WINDOW_TO_FRAME_PIXEL_Y (w, w->phys_cursor.y),
+		      width, row->height, color);
+    }
+  else
+    {
+      int dummy_x, dummy_y, dummy_height;
+
+      if (width < 0)
+	width = row->height;
+      width = min (row->height, width);
+
+      get_phys_cursor_geometry (w, row, glyph, &dummy_x, &dummy_y,
+				&dummy_height);
+
+      if ((glyph->resolved_level & 1) != 0
+	  && glyph->pixel_width > w->phys_cursor_width - 1)
+	x += glyph->pixel_width - w->phys_cursor_width + 1;
+
+      host_fill_area (f, x,
+		      WINDOW_TO_FRAME_PIXEL_Y (w, (w->phys_cursor.y
+						   + row->height - width)),
+		      w->phys_cursor_width - 1, width, color);
+    }
+
+  host_reset_clip (f);
+}
+
 static void
 host_draw_window_cursor (struct window *w, struct glyph_row *row,
 			 int x, int y, enum text_cursor_kinds cursor_type,
 			 int cursor_width, bool on_p, bool active_p)
 {
-  /* Where the cursor is was recorded in W before this was called,
-     which is what the host reads.  */
-  if (on_p)
+  if (!on_p)
+    return;
+
+  w->phys_cursor_type = cursor_type;
+  w->phys_cursor_on_p = true;
+
+  /* The cursor is past the last glyph of a line that filled the window
+     exactly, where there is no glyph to draw it on; the fringe shows
+     it instead.  */
+  if (row->exact_window_width_line_p
+      && (row->reversed_p
+	  ? w->phys_cursor.hpos < 0
+	  : w->phys_cursor.hpos >= row->used[TEXT_AREA]))
     {
-      w->phys_cursor_type = cursor_type;
-      w->phys_cursor_on_p = true;
+      row->cursor_in_fringe_p = true;
+      draw_fringe_bitmap (w, row, row->reversed_p);
+      return;
+    }
+
+  switch (cursor_type)
+    {
+    case HOLLOW_BOX_CURSOR:
+      host_draw_hollow_cursor (w, row);
+      break;
+
+    case FILLED_BOX_CURSOR:
+      draw_phys_cursor_glyph (w, row, DRAW_CURSOR);
+      break;
+
+    case BAR_CURSOR:
+    case HBAR_CURSOR:
+      host_draw_bar_cursor (w, row, cursor_width, cursor_type);
+      break;
+
+    case NO_CURSOR:
+      w->phys_cursor_width = 0;
+      break;
+
+    default:
+      emacs_abort ();
     }
 }
 
 static void
 host_draw_vertical_window_border (struct window *w, int x, int y_0, int y_1)
 {
+  struct frame *f = XFRAME (WINDOW_FRAME (w));
+  struct face *face = FACE_FROM_ID_OR_NULL (f, VERTICAL_BORDER_FACE_ID);
+
+  host_draw_line (f, x, y_0, x, y_1,
+		  face ? face->foreground : FRAME_FOREGROUND_PIXEL (f));
 }
 
 static void
 host_draw_window_divider (struct window *w, int x_0, int x_1,
 			  int y_0, int y_1)
 {
+  struct frame *f = XFRAME (WINDOW_FRAME (w));
+  struct face *face = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FACE_ID);
+  struct face *first
+    = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FIRST_PIXEL_FACE_ID);
+  struct face *last
+    = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_LAST_PIXEL_FACE_ID);
+  unsigned long color = face ? face->foreground : FRAME_FOREGROUND_PIXEL (f);
+  unsigned long color_first
+    = first ? first->foreground : FRAME_FOREGROUND_PIXEL (f);
+  unsigned long color_last
+    = last ? last->foreground : FRAME_FOREGROUND_PIXEL (f);
+
+  /* The pixels at the edges are drawn in faces of their own where
+     there is room for them, which is what gives the divider an edge to
+     be seen against.  */
+  if (y_1 - y_0 > x_1 - x_0 && x_1 - x_0 >= 3)
+    {
+      host_fill_area (f, x_0, y_0, 1, y_1 - y_0, color_first);
+      host_fill_area (f, x_0 + 1, y_0, x_1 - x_0 - 2, y_1 - y_0, color);
+      host_fill_area (f, x_1 - 1, y_0, 1, y_1 - y_0, color_last);
+    }
+  else if (x_1 - x_0 > y_1 - y_0 && y_1 - y_0 >= 3)
+    {
+      host_fill_area (f, x_0, y_0, x_1 - x_0, 1, color_first);
+      host_fill_area (f, x_0, y_0 + 1, x_1 - x_0, y_1 - y_0 - 2, color);
+      host_fill_area (f, x_0, y_1 - 1, x_1 - x_0, 1, color_last);
+    }
+  else
+    host_fill_area (f, x_0, y_0, x_1 - x_0, y_1 - y_0, color);
 }
 
 /* The font a frame starts with, when its parameters name none: the
@@ -618,9 +1246,12 @@ syms_of_hostterm (void)
 	       x_use_underline_position_properties,
      doc: /* SKIP: real doc in xterm.c.  */);
   x_use_underline_position_properties = true;
+  DEFSYM (Qx_use_underline_position_properties,
+	  "x-use-underline-position-properties");
 
   DEFVAR_BOOL ("x-underline-at-descent-line",
 	       x_underline_at_descent_line,
      doc: /* SKIP: real doc in xterm.c.  */);
   x_underline_at_descent_line = false;
+  DEFSYM (Qx_underline_at_descent_line, "x-underline-at-descent-line");
 }

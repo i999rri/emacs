@@ -30,6 +30,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <config.h>
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "lisp.h"
 #include "frame.h"
@@ -207,8 +208,30 @@ host_forget_drawn (struct frame *f)
   picture->drawn_width = picture->drawn_height = 0;
 }
 
-/* Cut the box X, Y, WIDTH by HEIGHT down to what is inside PICTURE,
-   and say whether anything is left of it.  */
+/* Keep drawing on F within the box X, Y, WIDTH by HEIGHT, which is
+   what redisplay narrows to a row or to what a glyph string may
+   reach, and let it out again.  */
+
+void
+host_set_clip (struct frame *f, int x, int y, int width, int height)
+{
+  struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
+
+  picture->clipped = true;
+  picture->clip_x = x;
+  picture->clip_y = y;
+  picture->clip_width = width;
+  picture->clip_height = height;
+}
+
+void
+host_reset_clip (struct frame *f)
+{
+  FRAME_OUTPUT_DATA (f)->picture.clipped = false;
+}
+
+/* Cut the box X, Y, WIDTH by HEIGHT down to what is inside PICTURE and
+   within what is being kept to, and say whether anything is left.  */
 
 static bool
 host_clip (struct host_picture *picture, int *x, int *y,
@@ -218,6 +241,14 @@ host_clip (struct host_picture *picture, int *x, int *y,
   int top = max (*y, 0);
   int right = min (*x + *width, picture->width);
   int bottom = min (*y + *height, picture->height);
+
+  if (picture->clipped)
+    {
+      left = max (left, picture->clip_x);
+      top = max (top, picture->clip_y);
+      right = min (right, picture->clip_x + picture->clip_width);
+      bottom = min (bottom, picture->clip_y + picture->clip_height);
+    }
 
   *x = left;
   *y = top;
@@ -249,6 +280,59 @@ host_fill_area (struct frame *f, int x, int y, int width, int height,
     }
 
   host_drawn (f, x, y, width, height);
+}
+
+/* Draw the outline of the box X, Y, WIDTH by HEIGHT of F's picture in
+   COLOR, a pixel thick, which is the box a hollow cursor is.  */
+
+void
+host_draw_rectangle (struct frame *f, int x, int y, int width, int height,
+		     unsigned long color)
+{
+  if (width < 0 || height < 0)
+    return;
+
+  host_fill_area (f, x, y, width + 1, 1, color);
+  host_fill_area (f, x, y + height, width + 1, 1, color);
+  host_fill_area (f, x, y, 1, height + 1, color);
+  host_fill_area (f, x + width, y, 1, height + 1, color);
+}
+
+/* Draw a line of F's picture in COLOR from X0, Y0 to X1, Y1.
+
+   Whole pixels, with no softening of the edges: the lines drawn are
+   the borders between windows and the wave under misspelt text, and
+   both are of a width Emacs chose in pixels.  */
+
+void
+host_draw_line (struct frame *f, int x0, int y0, int x1, int y1,
+		unsigned long color)
+{
+  int dx = abs (x1 - x0), dy = -abs (y1 - y0);
+  int step_x = x0 < x1 ? 1 : -1, step_y = y0 < y1 ? 1 : -1;
+  int error = dx + dy;
+
+  while (true)
+    {
+      host_fill_area (f, x0, y0, 1, 1, color);
+      if (x0 == x1 && y0 == y1)
+	return;
+
+      {
+	int twice = 2 * error;
+
+	if (twice >= dy)
+	  {
+	    error += dy;
+	    x0 += step_x;
+	  }
+	if (twice <= dx)
+	  {
+	    error += dx;
+	    y0 += step_y;
+	  }
+      }
+    }
 }
 
 /* Draw COLOR onto F's picture through CELLS, WIDTH by HEIGHT parts in

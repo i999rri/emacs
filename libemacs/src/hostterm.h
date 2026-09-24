@@ -148,12 +148,23 @@ struct host_picture
      the smallest one that holds all of them; empty where nothing has
      been drawn.  Only that much is worth handing over.  */
   int drawn_x, drawn_y, drawn_width, drawn_height;
+
+  /* The box drawing is kept within, which redisplay narrows to a row
+     or to what a glyph string may reach; the whole picture when
+     CLIPPED is false.  */
+  bool clipped;
+  int clip_x, clip_y, clip_width, clip_height;
 };
 
 extern struct host_picture *host_frame_picture (struct frame *);
 extern void host_free_picture (struct frame *);
 extern void host_forget_drawn (struct frame *);
 extern void host_fill_area (struct frame *, int, int, int, int, unsigned long);
+extern void host_draw_rectangle (struct frame *, int, int, int, int,
+				 unsigned long);
+extern void host_draw_line (struct frame *, int, int, int, int, unsigned long);
+extern void host_set_clip (struct frame *, int, int, int, int);
+extern void host_reset_clip (struct frame *);
 extern void host_blend_coverage (struct frame *, unsigned char const *, int,
 				 int, int, int, int, unsigned long);
 extern void host_show_picture (struct frame *);
