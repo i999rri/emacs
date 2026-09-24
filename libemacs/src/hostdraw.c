@@ -166,6 +166,36 @@ host_free_picture (struct frame *f)
   host_forget_drawn (f);
 }
 
+/* The area of the box that holds both A and B, which is what putting
+   the two together would come to.  */
+
+static double
+host_box_together (struct host_box const *a, struct host_box const *b)
+{
+  double left = min (a->x, b->x);
+  double top = min (a->y, b->y);
+  double right = max (a->x + a->width, b->x + b->width);
+  double bottom = max (a->y + a->height, b->y + b->height);
+
+  return (right - left) * (bottom - top);
+}
+
+/* Put B into A.  */
+
+static void
+host_box_absorb (struct host_box *a, struct host_box const *b)
+{
+  int left = min (a->x, b->x);
+  int top = min (a->y, b->y);
+  int right = max (a->x + a->width, b->x + b->width);
+  int bottom = max (a->y + a->height, b->y + b->height);
+
+  a->x = left;
+  a->y = top;
+  a->width = right - left;
+  a->height = bottom - top;
+}
+
 /* Take in that the box X, Y, WIDTH by HEIGHT of F's picture was drawn
    into, so that the host is given it.  */
 
@@ -173,39 +203,63 @@ static void
 host_drawn (struct frame *f, int x, int y, int width, int height)
 {
   struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
+  struct host_box box = { x, y, width, height };
+  int i, waste_at = 0, waste_with = 0;
+  double least = 0;
 
   if (width <= 0 || height <= 0)
     return;
 
-  if (picture->drawn_width <= 0 || picture->drawn_height <= 0)
+  /* Into a box it already touches, which is the usual way of it: a
+     line is drawn a glyph string at a time, and the whole of it is one
+     box by the end.  */
+  for (i = 0; i < picture->drawn_count; i++)
     {
-      picture->drawn_x = x;
-      picture->drawn_y = y;
-      picture->drawn_width = width;
-      picture->drawn_height = height;
+      struct host_box *kept = &picture->drawn[i];
+
+      if (box.x <= kept->x + kept->width && kept->x <= box.x + box.width
+	  && box.y <= kept->y + kept->height && kept->y <= box.y + box.height)
+	{
+	  host_box_absorb (kept, &box);
+	  return;
+	}
+    }
+
+  if (picture->drawn_count < HOST_DRAWN_BOXES)
+    {
+      picture->drawn[picture->drawn_count++] = box;
       return;
     }
 
-  {
-    int left = min (picture->drawn_x, x);
-    int top = min (picture->drawn_y, y);
-    int right = max (picture->drawn_x + picture->drawn_width, x + width);
-    int bottom = max (picture->drawn_y + picture->drawn_height, y + height);
+  /* No room for another, so two of them are put together: whichever
+     two waste least between them, the new box among them.  */
+  picture->drawn[picture->drawn_count] = box;
+  for (i = 0; i <= picture->drawn_count; i++)
+    {
+      int j;
 
-    picture->drawn_x = left;
-    picture->drawn_y = top;
-    picture->drawn_width = right - left;
-    picture->drawn_height = bottom - top;
-  }
+      for (j = i + 1; j <= picture->drawn_count; j++)
+	{
+	  double area = host_box_together (&picture->drawn[i],
+					   &picture->drawn[j]);
+
+	  if ((i == 0 && j == 1) || area < least)
+	    {
+	      least = area;
+	      waste_at = i;
+	      waste_with = j;
+	    }
+	}
+    }
+
+  host_box_absorb (&picture->drawn[waste_at], &picture->drawn[waste_with]);
+  picture->drawn[waste_with] = picture->drawn[picture->drawn_count];
 }
 
 void
 host_forget_drawn (struct frame *f)
 {
-  struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
-
-  picture->drawn_x = picture->drawn_y = 0;
-  picture->drawn_width = picture->drawn_height = 0;
+  FRAME_OUTPUT_DATA (f)->picture.drawn_count = 0;
 }
 
 /* Keep drawing on F within the box X, Y, WIDTH by HEIGHT, which is
@@ -432,38 +486,56 @@ host_show_picture (struct frame *f)
 {
   struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
   const struct host_api *api = host_current_api ();
-  int x = picture->drawn_x, y = picture->drawn_y;
-  int width = picture->drawn_width, height = picture->drawn_height;
-  ptrdiff_t bytes = (ptrdiff_t) width * height * sizeof *picture->cells;
+  char name[32];
+  ptrdiff_t room = 0;
   unsigned char *box;
   char *message, *at;
-  char name[32];
-  int row;
+  int i, row;
 
-  if (!api || !picture->cells || width <= 0 || height <= 0)
+  if (!api || !picture->cells || picture->drawn_count <= 0)
     return;
 
   host_frame_name (f, name, sizeof name);
 
-  /* The box on its own, since base64 has to read it a row at a time
-     and the picture is wider than the box.  */
-  box = xmalloc (bytes);
-  for (row = 0; row < height; row++)
-    memcpy (box + (ptrdiff_t) row * width * sizeof *picture->cells,
-	    picture->cells + (ptrdiff_t) (y + row) * picture->width + x,
-	    (ptrdiff_t) width * sizeof *picture->cells);
+  /* Room for the largest box and for the whole message: a header, and
+     for each box its own header and its pixels as base64.  */
+  for (i = 0; i < picture->drawn_count; i++)
+    {
+      ptrdiff_t bytes = ((ptrdiff_t) picture->drawn[i].width
+			 * picture->drawn[i].height * sizeof *picture->cells);
 
-  message = xmalloc (192 + 4 * ((bytes + 2) / 3) + 4);
+      room = max (room, bytes);
+    }
+
+  box = xmalloc (room);
+  message = xmalloc (192 + (ptrdiff_t) picture->drawn_count
+		     * (96 + 4 * ((room + 2) / 3)));
   at = message + sprintf (message,
 			  "{\"type\":\"picture\",\"frame\":\"%s\","
-			  "\"width\":%d,\"height\":%d,"
-			  "\"drawn\":{\"x\":%d,\"y\":%d,"
-			  "\"width\":%d,\"height\":%d},\"cells\":\"",
-			  name, picture->width, picture->height,
-			  x, y, width, height);
-  at = host_base64 (at, box, bytes);
-  strcpy (at, "\"}");
+			  "\"width\":%d,\"height\":%d,\"drawn\":[",
+			  name, picture->width, picture->height);
 
+  for (i = 0; i < picture->drawn_count; i++)
+    {
+      struct host_box *drawn = &picture->drawn[i];
+      ptrdiff_t stride = (ptrdiff_t) drawn->width * sizeof *picture->cells;
+
+      /* The box on its own, since base64 reads it a row at a time and
+	 the picture is wider than the box.  */
+      for (row = 0; row < drawn->height; row++)
+	memcpy (box + (ptrdiff_t) row * stride,
+		picture->cells + (ptrdiff_t) (drawn->y + row) * picture->width
+		+ drawn->x,
+		stride);
+
+      at += sprintf (at, "%s{\"x\":%d,\"y\":%d,\"width\":%d,\"height\":%d,"
+		     "\"cells\":\"", i ? "," : "",
+		     drawn->x, drawn->y, drawn->width, drawn->height);
+      at = host_base64 (at, box, (ptrdiff_t) drawn->height * stride);
+      at += sprintf (at, "\"}");
+    }
+
+  strcpy (at, "]}");
   api->post (message);
 
   xfree (message);

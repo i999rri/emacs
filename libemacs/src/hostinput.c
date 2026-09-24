@@ -720,6 +720,13 @@ host_pointer (struct host_input *input, struct frame *f,
       frame_make_pointer_visible (f);
       note_mouse_highlight (f, x, y);
 
+      /* What lights up under the pointer is drawn as the pointer
+	 arrives, outside any redisplay, and nothing else would hand
+	 the picture over until the screen changed for some other
+	 reason.  A window system that draws to a screen of its own
+	 needs no such thing; one that is handed a picture does.  */
+      flush_frame (f);
+
       if (!NILP (help_echo_string) || !NILP (previous_help_echo_string))
 	*help = 1;
       return;

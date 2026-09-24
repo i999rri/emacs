@@ -138,16 +138,30 @@ enum host_pointer
 /* The pixels of a frame, which redisplay draws into and the host is
    handed to show (hostdraw.c).  */
 
+/* How many boxes of what was drawn are kept apart before any are put
+   together.  A line and the mode line make two; a line, the mode line
+   and the echo area make three; the rest is room to spare.  */
+#define HOST_DRAWN_BOXES 8
+
 struct host_picture
 {
   /* WIDTH by HEIGHT pixels, a row at a time, each 0xAARRGGBB.  */
   unsigned int *cells;
   int width, height;
 
-  /* The box drawn into since the host was last given the picture, as
-     the smallest one that holds all of them; empty where nothing has
-     been drawn.  Only that much is worth handing over.  */
-  int drawn_x, drawn_y, drawn_width, drawn_height;
+  /* The boxes drawn into since the host was last given the picture,
+     which is all that is worth handing over.
+
+     Several, because what a keystroke draws is the line being typed in
+     and the mode line below it, and one box around both is the whole
+     frame between them.  Where there are more than there is room for,
+     the two that waste least between them are put together, so that
+     what is sent is at worst the box around everything.  */
+  struct host_box
+  {
+    int x, y, width, height;
+  } drawn[HOST_DRAWN_BOXES];
+  int drawn_count;
 
   /* The box drawing is kept within, which redisplay narrows to a row
      or to what a glyph string may reach; the whole picture when
