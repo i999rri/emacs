@@ -431,7 +431,7 @@ static const char host_base64_digits[]
    next character would go.  TO must have room for four characters per
    three bytes, rounded up.  */
 
-static char *
+char *
 host_base64 (char *to, unsigned char const *from, ptrdiff_t length)
 {
   ptrdiff_t i;

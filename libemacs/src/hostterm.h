@@ -182,6 +182,12 @@ extern void host_reset_clip (struct frame *);
 extern void host_blend_coverage (struct frame *, unsigned char const *, int,
 				 int, int, int, int, unsigned long);
 extern void host_show_picture (struct frame *);
+extern char *host_base64 (char *, unsigned char const *, ptrdiff_t);
+
+/* The fonts a host is to draw in (hostfont.c).  */
+extern int host_font_id (struct glyph_string *);
+extern void host_font_wanted (int);
+extern void syms_of_hostfont (void);
 
 struct host_output
 {

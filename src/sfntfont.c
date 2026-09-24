@@ -3777,6 +3777,26 @@ sfntfont_draw (struct glyph_string *s, int from, int to,
 
 
 
+/* Return the name of the file FONT was read from, and in *INSTANCE
+   which of its named instances FONT is, or -1 for none.
+
+   A window system whose frames are drawn by something else hands that
+   the font itself, so that the glyphs it is told to draw are looked
+   for in the file they were measured in.  */
+
+const char *
+sfntfont_file_name (struct font *font, int *instance)
+{
+  struct sfnt_font_info *info = (struct sfnt_font_info *) font;
+
+  if (!info->desc)
+    return NULL;
+
+  if (instance)
+    *instance = info->instance;
+  return info->desc->path;
+}
+
 /* Other callbacks.  */
 
 /* Return a list of each font family known to Emacs.  F is supposed to

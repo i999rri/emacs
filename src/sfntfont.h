@@ -41,6 +41,11 @@ extern void sfntfont_close (struct font *);
 extern int sfntfont_draw (struct glyph_string *, int, int,
 			  int, int, bool);
 extern Lisp_Object sfntfont_list_family (struct frame *);
+
+/* The file FONT was read from, and which face of that file it is, for
+   a window system that hands the font itself to whatever draws for
+   it.  Returns NULL if FONT was not read from a file.  */
+extern const char *sfntfont_file_name (struct font *, int *);
 extern int sfntfont_get_variation_glyphs (struct font *, int, unsigned[256]);
 
 

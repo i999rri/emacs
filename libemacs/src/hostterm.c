@@ -797,7 +797,13 @@ host_draw_glyph_string (struct glyph_string *s)
       /* A glyphless character has no glyph to draw; what marks it is
 	 the box its face puts around the room kept for it.  */
       if (s->font && s->first_glyph->type != GLYPHLESS_GLYPH)
-	s->font->driver->draw (s, 0, s->nchars, s->x, s->ybase, false);
+	{
+	  /* The host is to have the file these glyphs are looked for
+	     in, against the day it draws them itself: a glyph is
+	     numbered by the file it is in and nothing else.  */
+	  host_font_id (s);
+	  s->font->driver->draw (s, 0, s->nchars, s->x, s->ybase, false);
+	}
       break;
 
     default:
@@ -1239,6 +1245,8 @@ syms_of_hostterm (void)
 {
   /* That this is a host build, for loadup.el to load host-win.el.  */
   Fprovide (Qhost, Qnil);
+
+  syms_of_hostfont ();
 
   /* Every window system has these, and cus-start.el expects them of
      one that has `x-create-frame'.  */
