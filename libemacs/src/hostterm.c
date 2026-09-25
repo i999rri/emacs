@@ -280,16 +280,50 @@ host_menu_show (struct frame *f, int x, int y, int menuflags,
    generic ones, so that the cursor, the mouse face and the rows in the
    matrices come out the same as on any other window system.  */
 
+/* Move what is drawn for the rows of W that RUN says have moved.
+
+   Redisplay moves the rows it keeps within the matrix and draws only
+   the ones that were not there before, so the picture has to move with
+   them: what was drawn in the rows that moved is still what they show.  */
+
 static void
 host_scroll_run (struct window *w, struct run *run)
 {
-  /* The matrices already hold the rows where they moved to.  */
+  struct frame *f = XFRAME (w->frame);
+  int x, y, width, height, from_y, to_y, bottom_y;
+
+  window_box (w, ANY_AREA, &x, &y, &width, &height);
+
+  from_y = WINDOW_TO_FRAME_PIXEL_Y (w, run->current_y);
+  to_y = WINDOW_TO_FRAME_PIXEL_Y (w, run->desired_y);
+  bottom_y = y + height;
+
+  /* Not as far as the mode line below the text, which is not the
+     window's to scroll.  */
+  if (to_y < from_y)
+    height = (from_y + run->height > bottom_y
+	      ? bottom_y - from_y : run->height);
+  else
+    height = (to_y + run->height > bottom_y
+	      ? bottom_y - to_y : run->height);
+
+  /* The cursor is drawn again by `gui_update_window_end'; moved with
+     the rows it would be drawn twice.  */
+  gui_clear_cursor (w);
+
+  host_move_area (f, x, from_y, width, height, to_y);
 }
 
+/* Take that ROW of W has been drawn again, so that what goes in the
+   fringe beside it is drawn again with it.  */
+
 static void
-host_after_update_window_line (struct window *w,
-			       struct glyph_row *desired_row)
+host_after_update_window_line (struct window *w, struct glyph_row *desired_row)
 {
+  eassert (w);
+
+  if (!desired_row->mode_line_p && !w->pseudo_window_p)
+    desired_row->redraw_fringe_bitmaps_p = true;
 }
 
 /* Draw the bitmap P says goes in the fringe of W beside ROW, which
@@ -375,19 +409,81 @@ host_set_glyph_string_colors (struct glyph_string *s)
 }
 
 /* Fill in what is behind S, which is the face's background over the
-   whole width the string was given.  */
+   whole width the string was given.
+
+   Only where it is needed: the glyphs are drawn over their own
+   background where the font is as tall as the line, so filling it
+   first would be drawing the same pixels twice.  FORCE_P asks for it
+   anyway, which is what drawing a box around the text and drawing
+   over the overhang of the string before it both need.  */
 
 static void
-host_draw_glyph_string_background (struct glyph_string *s)
+host_draw_glyph_string_background (struct glyph_string *s, bool force_p)
 {
-  int box = max (s->face->box_vertical_line_width, 0);
+  int box = max (s->face->box_horizontal_line_width, 0);
 
-  if (s->stippled_p || s->background_filled_p)
+  if (s->background_filled_p)
     return;
 
-  host_fill_area (s->f, s->x, s->y + box, s->background_width,
-		  s->height - 2 * box, s->background);
-  s->background_filled_p = true;
+  /* A stipple is a pattern this does not draw; the background is
+     filled with the color behind it, which is what it comes to
+     without the pattern.  */
+  if (s->stippled_p
+      || FONT_HEIGHT (s->font) < s->height - 2 * box
+      || FONT_TOO_HIGH (s->font)
+      || s->font_not_found_p
+      || s->extends_to_end_of_line_p
+      || force_p)
+    {
+      host_fill_area (s->f, s->x, s->y + box, s->background_width,
+		      s->height - 2 * box, s->background);
+      s->background_filled_p = true;
+    }
+}
+
+/* Keep drawing within S itself, rather than within the whole of what
+   it is a part of: a string whose neighbour is drawn in another face
+   may reach into it, and that much is drawn when the neighbour is.  */
+
+static void
+host_set_glyph_string_clipping_exactly (struct glyph_string *s)
+{
+  host_set_clip (s->f, s->x, s->y, s->width, s->height);
+}
+
+/* How far S reaches past where it was given room for, which is how
+   far the strings beside it have to be drawn again when it is.
+
+   A glyph may be drawn wider than the room it was given: an italic
+   leans past it, and some letters are drawn with a flourish.  Without
+   this Emacs takes every glyph to stay within its room, and what is
+   drawn past it is left behind when the text beside it changes.  */
+
+static void
+host_compute_glyph_string_overhangs (struct glyph_string *s)
+{
+  if (!s->cmp
+      && (s->first_glyph->type == CHAR_GLYPH
+	  || s->first_glyph->type == COMPOSITE_GLYPH))
+    {
+      struct font_metrics metrics;
+
+      if (s->first_glyph->type == CHAR_GLYPH)
+	s->font->driver->text_extents (s->font, s->char2b, s->nchars,
+				       &metrics);
+      else
+	composition_gstring_width (composition_gstring_from_id (s->cmp_id),
+				   s->cmp_from, s->cmp_to, &metrics);
+
+      s->right_overhang = (metrics.rbearing > metrics.width
+			   ? metrics.rbearing - metrics.width : 0);
+      s->left_overhang = metrics.lbearing < 0 ? -metrics.lbearing : 0;
+    }
+  else if (s->cmp)
+    {
+      s->right_overhang = s->cmp->rbearing - s->cmp->pixel_width;
+      s->left_overhang = -s->cmp->lbearing;
+    }
 }
 
 /* Keep drawing of S within the part of the window it may reach, which
@@ -443,6 +539,7 @@ host_draw_box_rect (struct glyph_string *s, int left_x, int top_y,
 		    bool left_p, bool right_p)
 {
   unsigned long color = s->face->box_color;
+  struct host_clip was = host_clip_now (s->f);
 
   host_set_glyph_string_clipping (s);
 
@@ -455,7 +552,7 @@ host_draw_box_rect (struct glyph_string *s, int left_x, int top_y,
     host_fill_area (s->f, right_x - vwidth + 1, top_y, vwidth,
 		    bottom_y - top_y + 1, color);
 
-  host_reset_clip (s->f);
+  host_clip_again (s->f, was);
 }
 
 /* Draw the box of S as one standing out of the screen, or sunk into
@@ -475,6 +572,7 @@ host_draw_relief_rect (struct glyph_string *s, int left_x, int top_y,
   unsigned long shade = host_shaded (color, 0.6);
   unsigned long top = raised_p ? lit : shade;
   unsigned long bottom = raised_p ? shade : lit;
+  struct host_clip was = host_clip_now (s->f);
 
   host_set_glyph_string_clipping (s);
 
@@ -487,7 +585,7 @@ host_draw_relief_rect (struct glyph_string *s, int left_x, int top_y,
     host_fill_area (s->f, right_x - vwidth + 1, top_y, vwidth,
 		    bottom_y - top_y + 1, bottom);
 
-  host_reset_clip (s->f);
+  host_clip_again (s->f, was);
 }
 
 /* Draw the box the face of S asks for around it.  */
@@ -605,6 +703,7 @@ host_draw_underwave (struct glyph_string *s, int width, unsigned long color)
   int xmax = x0 + width;
   int x1, x2, y1, y2;
   bool odd;
+  struct host_clip was = host_clip_now (s->f);
 
   host_set_clip (s->f, x0, y0, width, height);
 
@@ -628,7 +727,7 @@ host_draw_underwave (struct glyph_string *s, int width, unsigned long color)
       odd = !odd;
     }
 
-  host_reset_clip (s->f);
+  host_clip_again (s->f, was);
 }
 
 /* Draw what the face of S puts around and through its text, once the
@@ -768,6 +867,36 @@ host_draw_glyph_string (struct glyph_string *s)
 
   host_set_glyph_string_colors (s);
 
+  /* What this string reaches into is drawn again first, so that the
+     glyphs of it are not left over what is drawn here.  */
+  if (s->next && s->right_overhang && !s->for_overlaps)
+    {
+      struct glyph_string *next;
+      int width;
+
+      for (width = 0, next = s->next;
+	   next && width < s->right_overhang;
+	   width += next->width, next = next->next)
+	if (next->first_glyph->type != IMAGE_GLYPH)
+	  {
+	    struct host_clip was = host_clip_now (s->f);
+
+	    host_set_glyph_string_colors (next);
+	    host_set_glyph_string_clipping (next);
+	    if (next->first_glyph->type == STRETCH_GLYPH)
+	      host_fill_area (next->f, next->x, next->y,
+			      next->background_width, next->height,
+			      next->background);
+	    else
+	      host_draw_glyph_string_background (next, true);
+	    host_clip_again (s->f, was);
+	  }
+
+      /* The colors are this string's again, which telling the strings
+	 beside it apart took away.  */
+      host_set_glyph_string_colors (s);
+    }
+
   /* A box around text is drawn first, so that the text is drawn over
      it rather than cut short by it.  */
   if (!s->for_overlaps && s->face->box != FACE_NO_BOX
@@ -775,12 +904,21 @@ host_draw_glyph_string (struct glyph_string *s)
 	  || s->first_glyph->type == COMPOSITE_GLYPH))
     {
       host_set_glyph_string_clipping (s);
-      host_draw_glyph_string_background (s);
+      host_draw_glyph_string_background (s, true);
       host_draw_glyph_string_box (s);
       box_drawn_p = true;
     }
+  else if (!s->clip_head && !s->clip_tail
+	   && ((s->prev && s->prev->hl != s->hl && s->left_overhang)
+	       || (s->next && s->next->hl != s->hl && s->right_overhang)))
+    /* What this reaches into is drawn in another face, and was drawn
+       or is to be drawn with the overhang that belongs to it.  */
+    host_set_glyph_string_clipping_exactly (s);
+  else
+    host_set_glyph_string_clipping (s);
 
-  host_set_glyph_string_clipping (s);
+  if (box_drawn_p)
+    host_set_glyph_string_clipping (s);
 
   switch (s->first_glyph->type)
     {
@@ -799,7 +937,7 @@ host_draw_glyph_string (struct glyph_string *s)
       if (s->for_overlaps)
 	s->background_filled_p = true;
       else
-	host_draw_glyph_string_background (s);
+	host_draw_glyph_string_background (s, false);
 
       /* A glyphless character has no glyph to draw; what marks it is
 	 the box its face puts around the room kept for it.  */
@@ -816,7 +954,7 @@ host_draw_glyph_string (struct glyph_string *s)
     default:
       /* Images and xwidgets are still to be drawn; the room kept for
 	 them comes out as their background until they are.  */
-      host_draw_glyph_string_background (s);
+      host_draw_glyph_string_background (s, true);
       break;
     }
 
@@ -1137,7 +1275,7 @@ static struct redisplay_interface host_redisplay_interface =
     host_draw_fringe_bitmap,
     NULL, /* define_fringe_bitmap */
     NULL, /* destroy_fringe_bitmap */
-    NULL, /* compute_glyph_string_overhangs */
+    host_compute_glyph_string_overhangs,
     host_draw_glyph_string,
     host_define_frame_cursor,
     host_clear_frame_area,

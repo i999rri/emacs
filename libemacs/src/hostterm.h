@@ -177,11 +177,24 @@ extern void host_fill_area (struct frame *, int, int, int, int, unsigned long);
 extern void host_draw_rectangle (struct frame *, int, int, int, int,
 				 unsigned long);
 extern void host_draw_line (struct frame *, int, int, int, int, unsigned long);
+extern void host_move_area (struct frame *, int, int, int, int, int);
+/* What drawing is being kept within, to put back after narrowing it
+   further: one that draws a part of a glyph string is drawn within
+   what the string is, and leaves that as it found it.  */
+struct host_clip
+{
+  bool clipped;
+  int x, y, width, height;
+};
+
 extern void host_set_clip (struct frame *, int, int, int, int);
 extern void host_reset_clip (struct frame *);
+extern struct host_clip host_clip_now (struct frame *);
+extern void host_clip_again (struct frame *, struct host_clip);
 extern void host_blend_coverage (struct frame *, unsigned char const *, int,
 				 int, int, int, int, unsigned long);
 extern void host_show_picture (struct frame *);
+
 extern char *host_base64 (char *, unsigned char const *, ptrdiff_t);
 
 /* The fonts a host is to draw in (hostfont.c).  */

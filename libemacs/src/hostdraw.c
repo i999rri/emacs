@@ -284,6 +284,28 @@ host_reset_clip (struct frame *f)
   FRAME_OUTPUT_DATA (f)->picture.clipped = false;
 }
 
+struct host_clip
+host_clip_now (struct frame *f)
+{
+  struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
+
+  return (struct host_clip) { picture->clipped, picture->clip_x,
+			      picture->clip_y, picture->clip_width,
+			      picture->clip_height };
+}
+
+void
+host_clip_again (struct frame *f, struct host_clip was)
+{
+  struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
+
+  picture->clipped = was.clipped;
+  picture->clip_x = was.x;
+  picture->clip_y = was.y;
+  picture->clip_width = was.width;
+  picture->clip_height = was.height;
+}
+
 /* Cut the box X, Y, WIDTH by HEIGHT down to what is inside PICTURE and
    within what is being kept to, and say whether anything is left.  */
 
