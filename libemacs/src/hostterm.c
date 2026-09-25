@@ -973,11 +973,43 @@ host_draw_glyph_string (struct glyph_string *s)
 static void
 host_define_frame_cursor (struct frame *f, Emacs_Cursor cursor)
 {
+  static const char *const names[] = {
+    [HOST_POINTER_NONE] = "none",
+    [HOST_POINTER_ARROW] = "arrow",
+    [HOST_POINTER_TEXT] = "text",
+    [HOST_POINTER_HAND] = "hand",
+    [HOST_POINTER_BUSY] = "busy",
+    [HOST_POINTER_HORIZONTAL_DRAG] = "horizontal-drag",
+    [HOST_POINTER_VERTICAL_DRAG] = "vertical-drag",
+    [HOST_POINTER_LEFT_EDGE] = "left-edge",
+    [HOST_POINTER_TOP_LEFT_CORNER] = "top-left-corner",
+    [HOST_POINTER_TOP_EDGE] = "top-edge",
+    [HOST_POINTER_TOP_RIGHT_CORNER] = "top-right-corner",
+    [HOST_POINTER_RIGHT_EDGE] = "right-edge",
+    [HOST_POINTER_BOTTOM_RIGHT_CORNER] = "bottom-right-corner",
+    [HOST_POINTER_BOTTOM_EDGE] = "bottom-edge",
+    [HOST_POINTER_BOTTOM_LEFT_CORNER] = "bottom-left-corner",
+  };
+  const struct host_api *api = host_current_api ();
+  enum host_pointer shape = HOST_POINTER_OF (cursor);
+  char message[96];
+
   if (FRAME_OUTPUT_DATA (f)->current_cursor == cursor)
     return;
 
   FRAME_OUTPUT_DATA (f)->current_cursor = cursor;
-  host_notify ("{\"type\":\"redraw\"}");
+
+  /* Said to the host rather than to Lisp.  What lights up under the
+     pointer is drawn and handed over as the pointer arrives, and the
+     shape it takes is settled in the same breath; going by way of
+     Lisp, which looks at what it has been sent on a timer, would have
+     the two disagree for as long as that timer takes.  */
+  if (!api || shape < 0 || shape >= ARRAYELTS (names) || !names[shape])
+    return;
+
+  sprintf (message, "{\"type\":\"pointer\",\"shape\":\"%s\"}",
+	   names[shape]);
+  api->post (message);
 }
 
 static void

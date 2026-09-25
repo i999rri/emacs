@@ -648,7 +648,8 @@ host_show_picture (struct frame *f)
 	for (i = 0; i < picture->drawn_count; i++)
 	  drawn += ((ptrdiff_t) picture->drawn[i].width
 		    * picture->drawn[i].height);
-	fprintf (stderr, "picture %d: %d moved, %d boxes, %ld pixels, %ld bytes\n",
+	fprintf (stderr,
+		 "picture %d: %d moved, %d boxes, %ld pixels, %ld bytes\n",
 		 ++told, picture->moved_count, picture->drawn_count, (long) drawn,
 		 (long) (at - message + 2));
       }
