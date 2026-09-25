@@ -260,6 +260,7 @@ void
 host_forget_drawn (struct frame *f)
 {
   FRAME_OUTPUT_DATA (f)->picture.drawn_count = 0;
+  FRAME_OUTPUT_DATA (f)->picture.moved_count = 0;
 }
 
 /* Keep drawing on F within the box X, Y, WIDTH by HEIGHT, which is
@@ -411,6 +412,68 @@ host_draw_line (struct frame *f, int x0, int y0, int x1, int y1,
     }
 }
 
+/* Move the box X, FROM_Y, WIDTH by HEIGHT of F's picture to X, TO_Y.
+
+   This is what a window scrolling comes to: redisplay moves the rows
+   it keeps within the matrix and draws only the ones that were not
+   there before, so a picture that did not move with them would keep
+   what was drawn in the rows that moved.  */
+
+void
+host_move_area (struct frame *f, int x, int from_y, int width, int height,
+		int to_y)
+{
+  struct host_picture *picture = host_frame_picture (f);
+  int left = max (x, 0);
+  int right = min (x + width, picture ? picture->width : 0);
+  int row;
+
+  if (!picture || right <= left || height <= 0 || from_y == to_y)
+    return;
+
+  /* Cut to what is in the picture at both ends, keeping the two the
+     same height so that what is moved is what was there.  */
+  {
+    int above = max (0, max (-from_y, -to_y));
+    int below = max (0, max (from_y + height - picture->height,
+			     to_y + height - picture->height));
+
+    from_y += above;
+    to_y += above;
+    height -= above + below;
+    if (height <= 0)
+      return;
+  }
+
+  /* From the end the rows are moving towards, so that a box moved on
+     top of itself is not read after it has been written.  */
+  for (row = 0; row < height; row++)
+    {
+      int at = to_y < from_y ? row : height - 1 - row;
+
+      memmove (picture->cells + (ptrdiff_t) (to_y + at) * picture->width + left,
+	       picture->cells + (ptrdiff_t) (from_y + at) * picture->width + left,
+	       (ptrdiff_t) (right - left) * sizeof *picture->cells);
+    }
+
+  /* Said to have moved rather than to have been drawn: the host has
+     what it holds already and moves its own.  Where there is no room
+     to say so it is sent as pixels, which is what saying nothing
+     comes to.  */
+  if (picture->moved_count < HOST_DRAWN_BOXES)
+    {
+      struct host_move *move = &picture->moved[picture->moved_count++];
+
+      move->x = left;
+      move->y = from_y;
+      move->width = right - left;
+      move->height = height;
+      move->to_y = to_y;
+    }
+  else
+    host_drawn (f, left, to_y, right - left, height);
+}
+
 /* Draw COLOR onto F's picture through CELLS, WIDTH by HEIGHT parts in
    255 of it laid out STRIDE bytes to the row, with its top left
    corner at X, Y.
@@ -514,7 +577,8 @@ host_show_picture (struct frame *f)
   char *message, *at;
   int i, row;
 
-  if (!api || !picture->cells || picture->drawn_count <= 0)
+  if (!api || !picture->cells
+      || (picture->drawn_count <= 0 && picture->moved_count <= 0))
     return;
 
   host_frame_name (f, name, sizeof name);
@@ -530,12 +594,24 @@ host_show_picture (struct frame *f)
     }
 
   box = xmalloc (room);
-  message = xmalloc (192 + (ptrdiff_t) picture->drawn_count
+  message = xmalloc (192 + (ptrdiff_t) HOST_DRAWN_BOXES * 96
+		     + (ptrdiff_t) picture->drawn_count
 		     * (96 + 4 * ((room + 2) / 3)));
   at = message + sprintf (message,
 			  "{\"type\":\"picture\",\"frame\":\"%s\","
-			  "\"width\":%d,\"height\":%d,\"drawn\":[",
+			  "\"width\":%d,\"height\":%d,\"moved\":[",
 			  name, picture->width, picture->height);
+
+  for (i = 0; i < picture->moved_count; i++)
+    {
+      struct host_move *move = &picture->moved[i];
+
+      at += sprintf (at, "%s{\"x\":%d,\"y\":%d,\"width\":%d,"
+		     "\"height\":%d,\"toY\":%d}", i ? "," : "",
+		     move->x, move->y, move->width, move->height, move->to_y);
+    }
+
+  at += sprintf (at, "],\"drawn\":[");
 
   for (i = 0; i < picture->drawn_count; i++)
     {
@@ -559,6 +635,24 @@ host_show_picture (struct frame *f)
 
   strcpy (at, "]}");
   api->post (message);
+
+  /* The first of them say what a picture costs, as the screens do:
+     long enough to see what a keystroke sends, and then quiet.  */
+  {
+    static int told;
+
+    if (told < 30)
+      {
+	ptrdiff_t drawn = 0;
+
+	for (i = 0; i < picture->drawn_count; i++)
+	  drawn += ((ptrdiff_t) picture->drawn[i].width
+		    * picture->drawn[i].height);
+	fprintf (stderr, "picture %d: %d moved, %d boxes, %ld pixels, %ld bytes\n",
+		 ++told, picture->moved_count, picture->drawn_count, (long) drawn,
+		 (long) (at - message + 2));
+      }
+  }
 
   xfree (message);
   xfree (box);

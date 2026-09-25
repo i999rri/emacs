@@ -157,11 +157,24 @@ struct host_picture
      frame between them.  Where there are more than there is room for,
      the two that waste least between them are put together, so that
      what is sent is at worst the box around everything.  */
+  /* One more than are kept: putting two together needs the new one
+     among them, and it is laid at the end while that is worked out.  */
   struct host_box
   {
     int x, y, width, height;
-  } drawn[HOST_DRAWN_BOXES];
+  } drawn[HOST_DRAWN_BOXES + 1];
   int drawn_count;
+
+  /* The boxes that moved within the picture since then, and how far
+     down each went, which is what a window scrolling comes to.  The
+     host has what they hold already and moves its own; sending the
+     pixels instead would be sending most of the frame for every line
+     scrolled.  They are moved before anything drawn is put in.  */
+  struct host_move
+  {
+    int x, y, width, height, to_y;
+  } moved[HOST_DRAWN_BOXES];
+  int moved_count;
 
   /* The box drawing is kept within, which redisplay narrows to a row
      or to what a glyph string may reach; the whole picture when
