@@ -872,6 +872,31 @@ host_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 	host_free (input.text);
     }
 
+  /* The messages that are not input are Lisp's to handle, and this is
+     where Emacs learns there are any: the host wrote to the pipe for
+     these as well as for input.  An event carries the handling into
+     the command loop, where Lisp may run.  */
+  {
+    /* One at a time: the keyboard buffer is where keys and the pointer
+       wait too, and it is not endless.  Another event while the first
+       is still there would say nothing new and would crowd them out.  */
+    static bool told;
+
+    if (!host_lisp_pending_p ())
+      told = false;
+    else if (!told && !NILP (Vhost_message_function))
+      {
+	struct input_event ie;
+
+	EVENT_INIT (ie);
+	ie.kind = NOTIFICATION_EVENT;
+	ie.arg = Fcons (Vhost_message_function, Qnil);
+	kbd_buffer_store_event_hold (&ie, hold_quit);
+	told = true;
+	count++;
+      }
+  }
+
   /* The help echo of what the pointer is over, or none any more.  */
   if (help && !(hold_quit && hold_quit->kind != NO_EVENT))
     {
@@ -996,4 +1021,18 @@ host_input_init (void)
   add_keyboard_wait_descriptor (wakeup_pipe[0]);
 
   host_claim_input (host_input_message_p, host_input_wakeup);
+}
+
+void
+syms_of_hostinput (void)
+{
+  DEFVAR_LISP ("host-message-function", Vhost_message_function,
+	       doc: /* Function called with no arguments for the host's messages.
+It is called when the host has sent messages that are not input, which
+are the ones `host-take-events' returns, and is to take them.  Called
+as the messages come, from the command loop.
+
+While this is nil nothing tells Lisp that any came, and whatever wants
+them must look for itself.  */);
+  Vhost_message_function = Qnil;
 }

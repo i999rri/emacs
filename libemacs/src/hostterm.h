@@ -280,6 +280,7 @@ extern void mark_host_display (void);
 extern void host_set_frame_visible_invisible (struct frame *, bool);
 extern bool host_get_color (const char *, Emacs_Color *);
 extern void syms_of_hostterm (void);
+extern void syms_of_hostinput (void);
 
 /* hostfns.c */
 extern unsigned long host_get_pixel (struct host_pixmap *, int, int);

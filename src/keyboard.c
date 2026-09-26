@@ -4266,7 +4266,7 @@ kbd_buffer_get_event (KBOARD **kbp,
 	  break;
 	}
 
-#ifdef HAVE_ANDROID
+#if defined HAVE_ANDROID || defined HAVE_HOST
       case NOTIFICATION_EVENT:
         {
 	  kbd_fetch_ptr = next_kbd_event (event);
@@ -4274,7 +4274,7 @@ kbd_buffer_get_event (KBOARD **kbp,
 	  CALLN (Fapply, XCAR (event->ie.arg), XCDR (event->ie.arg));
 	  break;
 	}
-#endif /* HAVE_ANDROID */
+#endif /* HAVE_ANDROID || HAVE_HOST */
 
       case TOOLKIT_THEME_CHANGED_EVENT:
 	kbd_fetch_ptr = next_kbd_event (event);

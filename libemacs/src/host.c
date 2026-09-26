@@ -173,7 +173,10 @@ receive_host_event (void *data, const char *message)
 
   sys_mutex_unlock (&event_lock);
 
-  if (input)
+  /* For either queue: a message for Lisp is no keystroke, but Emacs
+     waits the same way for both, and what waits until Emacs happens
+     to look is as good as late.  */
+  if (wakeup)
     wakeup ();
 }
 
@@ -213,7 +216,13 @@ host_notify (const char *message)
     lisp_queue.head = event;
   lisp_queue.tail = event;
   lisp_queue.pending++;
+  void (*wakeup) (void) = input_wakeup;
   sys_mutex_unlock (&event_lock);
+
+  /* Emacs is on this thread and awake, but what it is waiting on is
+     what tells it to look at the queue.  */
+  if (wakeup)
+    wakeup ();
 }
 
 void
@@ -226,6 +235,20 @@ host_claim_input (bool (*is_input) (const char *), void (*wakeup) (void))
   input_message_p = is_input;
   input_wakeup = wakeup;
   sys_mutex_unlock (&event_lock);
+}
+
+bool
+host_lisp_pending_p (void)
+{
+  bool any;
+
+  if (!host_api)
+    return false;
+
+  sys_mutex_lock (&event_lock);
+  any = lisp_queue.head != NULL;
+  sys_mutex_unlock (&event_lock);
+  return any;
 }
 
 char *
