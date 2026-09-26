@@ -306,6 +306,9 @@ host_clip_again (struct frame *f, struct host_clip was)
 {
   struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
 
+  if (host_recording_p ())
+    host_record_clip (f, was.clipped, was.x, was.y, was.width, was.height);
+
   picture->clipped = was.clipped;
   picture->clip_x = was.x;
   picture->clip_y = was.y;
