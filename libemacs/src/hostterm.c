@@ -355,8 +355,13 @@ host_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
   if (p->which && p->bits)
     {
       unsigned short *bits = p->bits + p->dh;
+      /* Laid over a cursor already drawn in the fringe, the bitmap is
+	 what is behind it: it is the hole the cursor is seen through
+	 rather than anything drawn in its own right.  */
       unsigned long color = (p->cursor_p
-			     ? FRAME_OUTPUT_DATA (f)->cursor_pixel
+			     ? (p->overlay_p
+				? face->background
+				: FRAME_OUTPUT_DATA (f)->cursor_pixel)
 			     : face->foreground);
       int line, column;
 
@@ -654,9 +659,17 @@ host_draw_dash (struct glyph_string *s, int width, int segment, int offset,
 {
   int at;
 
-  for (at = 0; at < width; at += segment * 2)
-    host_fill_area (s->f, s->x + at, s->ybase + offset,
-		    min (segment, width - at), thickness, color);
+  /* From where the pattern would have fallen had the line been drawn
+     in one piece, so that a run split in two by the cursor or by what
+     lights up under the pointer is still one dashed line.  */
+  for (at = -(s->x % (segment * 2)); at < width; at += segment * 2)
+    {
+      int from = max (at, 0);
+
+      if (from < at + segment)
+	host_fill_area (s->f, s->x + from, s->ybase + offset,
+			min (at + segment, width) - from, thickness, color);
+    }
 }
 
 /* Draw the underline of S in the style the face asks for, POSITION
@@ -704,8 +717,22 @@ host_draw_underwave (struct glyph_string *s, int width, unsigned long color)
   int x1, x2, y1, y2;
   bool odd;
   struct host_clip was = host_clip_now (s->f);
+  NativeRectangle within;
 
-  host_set_clip (s->f, x0, y0, width, height);
+  /* Within the string as well as within itself: a wave under the last
+     line of a window, which is only half shown, would otherwise be
+     drawn into the mode line below it.  */
+  get_glyph_string_clip_rect (s, &within);
+  {
+    int left = max (x0, within.x);
+    int top = max (y0, within.y);
+    int right = min (x0 + width, within.x + within.width);
+    int bottom = min (y0 + height, within.y + within.height);
+
+    if (right <= left || bottom <= top)
+      return;
+    host_set_clip (s->f, left, top, right - left, bottom - top);
+  }
 
   /* From the last turn of the wave before the string, so that a wave
      under text drawn in more than one piece is one wave.  */
@@ -728,6 +755,312 @@ host_draw_underwave (struct glyph_string *s, int width, unsigned long color)
     }
 
   host_clip_again (s->f, was);
+}
+
+/* Draw the glyphs of S.
+
+   With their own background where nothing else has filled it, which
+   is how the background of a face is drawn at all where the font is
+   as tall as the line: filling it first and drawing over it would be
+   the same pixels twice, so only one of the two is done.  */
+
+static void
+host_draw_glyph_string_foreground (struct glyph_string *s)
+{
+  int x, i;
+
+  /* Past the line of a box on the left, where the face has one.  */
+  x = (s->face->box != FACE_NO_BOX && s->first_glyph->left_box_line_p
+       ? s->x + max (s->face->box_vertical_line_width, 0)
+       : s->x);
+
+  /* A box to a character, where the font it wanted could not be read:
+     what is there is known, and that it could not be drawn.  */
+  if (s->font_not_found_p)
+    {
+      for (i = 0; i < s->nchars; i++)
+	{
+	  struct glyph *glyph = s->first_glyph + i;
+
+	  host_draw_rectangle (s->f, x, s->y, glyph->pixel_width - 1,
+			       s->height - 1, s->foreground);
+	  x += glyph->pixel_width;
+	}
+      return;
+    }
+
+  {
+    struct font *font = s->font;
+    int boff = font->baseline_offset;
+    int y;
+
+    if (font->vertical_centering)
+      boff = VCENTER_BASELINE_OFFSET (font, s->f) - boff;
+    y = s->ybase - boff;
+
+    font->driver->draw (s, 0, s->nchars, x, y,
+			!(s->for_overlaps
+			  || (s->background_filled_p && s->hl != DRAW_CURSOR)));
+
+    /* Drawn again a pixel over, which is how a face asks for a weight
+       the font it is drawn in has none of.  */
+    if (s->face->overstrike)
+      font->driver->draw (s, 0, s->nchars, x + 1, y, false);
+  }
+}
+
+/* Draw the glyphs of S, which is a composition: several characters
+   drawn as one, each where the composition says to put it.
+
+   A static composition holds the offsets itself; an automatic one is
+   a gstring, whose glyphs are drawn in runs, with one of its own
+   wherever a glyph was adjusted.  */
+
+static void
+host_draw_composite_glyph_string_foreground (struct glyph_string *s)
+{
+  struct font *font = s->font;
+  int i, j, x;
+
+  x = (s->face && s->face->box != FACE_NO_BOX && s->first_glyph->left_box_line_p
+       ? s->x + max (s->face->box_vertical_line_width, 0)
+       : s->x);
+
+  /* A box around the whole of it, where the font of its first
+     character could not be read.  */
+  if (s->font_not_found_p)
+    {
+      if (s->cmp_from == 0)
+	host_draw_rectangle (s->f, x, s->y, s->width - 1, s->height - 1,
+			     s->foreground);
+      return;
+    }
+
+  if (!s->first_glyph->u.cmp.automatic)
+    {
+      int y = s->ybase;
+
+      for (i = 0, j = s->cmp_from; i < s->nchars; i++, j++)
+	/* A tab in a composition is room kept to one side of it
+	   rather than anything to draw.  */
+	if (COMPOSITION_GLYPH (s->cmp, j) != '\t')
+	  {
+	    int xx = x + s->cmp->offsets[j * 2];
+	    int yy = y - s->cmp->offsets[j * 2 + 1];
+
+	    font->driver->draw (s, j, j + 1, xx, yy, false);
+	    if (s->face->overstrike)
+	      font->driver->draw (s, j, j + 1, xx + 1, yy, false);
+	  }
+      return;
+    }
+
+  {
+    Lisp_Object gstring = composition_gstring_from_id (s->cmp_id);
+    int y = s->ybase;
+    int width = 0;
+
+    for (i = j = s->cmp_from; i < s->cmp_to; i++)
+      {
+	Lisp_Object glyph = LGSTRING_GLYPH (gstring, i);
+
+	if (NILP (LGLYPH_ADJUSTMENT (glyph)))
+	  {
+	    width += LGLYPH_WIDTH (glyph);
+	    continue;
+	  }
+
+	/* One that was moved is drawn on its own, and what came
+	   before it in one go.  */
+	if (j < i)
+	  {
+	    font->driver->draw (s, j, i, x, y, false);
+	    if (s->face->overstrike)
+	      font->driver->draw (s, j, i, x + 1, y, false);
+	    x += width;
+	  }
+
+	font->driver->draw (s, i, i + 1, x + LGLYPH_XOFF (glyph),
+			    y + LGLYPH_YOFF (glyph), false);
+	if (s->face->overstrike)
+	  font->driver->draw (s, i, i + 1, x + LGLYPH_XOFF (glyph) + 1,
+			      y + LGLYPH_YOFF (glyph), false);
+	x += LGLYPH_WADJUST (glyph);
+	j = i + 1;
+	width = 0;
+      }
+
+    if (j < i)
+      {
+	font->driver->draw (s, j, i, x, y, false);
+	if (s->face->overstrike)
+	  font->driver->draw (s, j, i, x + 1, y, false);
+      }
+  }
+}
+
+/* Draw the glyphs of S, which stand for characters the font has none
+   of: a box with what is known of the character written in it, in two
+   halves, one above the other.  */
+
+static void
+host_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
+{
+  struct glyph *glyph = s->first_glyph;
+  unsigned char2b[8];
+  int x, i, j;
+
+  x = (s->face && s->face->box != FACE_NO_BOX && s->first_glyph->left_box_line_p
+       ? s->x + max (s->face->box_vertical_line_width, 0)
+       : s->x);
+
+  s->char2b = char2b;
+
+  for (i = 0; i < s->nchars; i++, glyph++)
+    {
+      char buf[7];
+      char *str = NULL;
+      int len = glyph->u.glyphless.len;
+
+      if (glyph->u.glyphless.method == GLYPHLESS_DISPLAY_ACRONYM)
+	{
+	  if (len > 0
+	      && CHAR_TABLE_P (Vglyphless_char_display)
+	      && (CHAR_TABLE_EXTRA_SLOTS (XCHAR_TABLE (Vglyphless_char_display))
+		  >= 1))
+	    {
+	      Lisp_Object acronym
+		= (!glyph->u.glyphless.for_no_font
+		   ? CHAR_TABLE_REF (Vglyphless_char_display,
+				     glyph->u.glyphless.ch)
+		   : XCHAR_TABLE (Vglyphless_char_display)->extras[0]);
+
+	      if (CONSP (acronym))
+		acronym = XCAR (acronym);
+	      if (STRINGP (acronym))
+		str = SSDATA (acronym);
+	    }
+	}
+      else if (glyph->u.glyphless.method == GLYPHLESS_DISPLAY_HEX_CODE)
+	{
+	  unsigned int ch = glyph->u.glyphless.ch;
+
+	  eassume (ch <= MAX_CHAR);
+	  sprintf (buf, "%0*X", ch < 0x10000 ? 4 : 6, ch);
+	  str = buf;
+	}
+
+      if (str)
+	{
+	  int upper_len = (len + 1) / 2;
+
+	  /* What is written in the box is ASCII throughout.  */
+	  for (j = 0; j < len; j++)
+	    char2b[j] = s->font->driver->encode_char (s->font, str[j]) & 0xFFFF;
+	  s->font->driver->draw (s, 0, upper_len,
+				 x + glyph->slice.glyphless.upper_xoff,
+				 s->ybase + glyph->slice.glyphless.upper_yoff,
+				 false);
+	  s->font->driver->draw (s, upper_len, len,
+				 x + glyph->slice.glyphless.lower_xoff,
+				 s->ybase + glyph->slice.glyphless.lower_yoff,
+				 false);
+	}
+
+      if (glyph->u.glyphless.method != GLYPHLESS_DISPLAY_THIN_SPACE)
+	host_draw_rectangle (s->f, x, s->ybase - glyph->ascent,
+			     glyph->pixel_width - 1,
+			     glyph->ascent + glyph->descent - 1, s->foreground);
+      x += glyph->pixel_width;
+    }
+
+  /* Nothing is to read this again once it is what was on the stack
+     here.  */
+  s->char2b = NULL;
+}
+
+/* Draw S, which is a stretch of blank as wide as it was given room
+   for: a tab, or what a `display' property of (space . ...) asks for.
+
+   The cursor on one is drawn as wide as a character rather than as
+   wide as the stretch, unless `x-stretch-cursor' says otherwise: a
+   cursor on a tab would otherwise be a block eight columns wide.  */
+
+static void
+host_draw_stretch_glyph_string (struct glyph_string *s)
+{
+  eassert (s->first_glyph->type == STRETCH_GLYPH);
+
+  if (s->hl == DRAW_CURSOR && !x_stretch_cursor_p)
+    {
+      int background_width = s->background_width;
+      int x = s->x, width;
+
+      if (!s->row->reversed_p)
+	{
+	  int left_x = window_box_left_offset (s->w, TEXT_AREA);
+
+	  if (x < left_x)
+	    {
+	      background_width -= left_x - x;
+	      x = left_x;
+	    }
+	}
+      else
+	{
+	  /* Read right to left, the cursor is at the right edge.  */
+	  int right_x = window_box_right (s->w, TEXT_AREA);
+
+	  if (x + background_width > right_x)
+	    background_width -= x - right_x;
+	  x += background_width;
+	}
+
+      width = min (FRAME_COLUMN_WIDTH (s->f), background_width);
+      if (s->row->reversed_p)
+	x -= width;
+
+      host_fill_area (s->f, x, s->y, width, s->height, s->background);
+
+      /* The rest of the stretch is not the cursor, and is filled in
+	 the color it would have had without one.  */
+      if (width < background_width)
+	{
+	  struct face *face = s->face;
+	  unsigned long color;
+
+	  if (!s->row->reversed_p)
+	    x += width;
+	  else
+	    x = s->x;
+
+	  color = (s->row->mouse_face_p && cursor_in_mouse_face_p (s->w)
+		   ? face->background : face->background);
+	  host_set_glyph_string_clipping (s);
+	  host_fill_area (s->f, x, s->y, background_width - width, s->height,
+			  color);
+	  host_reset_clip (s->f);
+	}
+    }
+  else if (!s->background_filled_p)
+    {
+      int background_width = s->background_width;
+      int x = s->x, text_left_x = window_box_left (s->w, TEXT_AREA);
+
+      /* Not into the fringe or the margin on the left, which are not
+	 the text's to draw in; a mode line has neither.  */
+      if (s->area == TEXT_AREA && x < text_left_x && !s->row->mode_line_p)
+	{
+	  background_width -= text_left_x - x;
+	  x = text_left_x;
+	}
+
+      if (background_width > 0)
+	host_fill_area (s->f, x, s->y, background_width, s->height,
+			s->background);
+    }
+
+  s->background_filled_p = true;
 }
 
 /* Draw what the face of S puts around and through its text, once the
@@ -853,6 +1186,30 @@ host_draw_glyph_string_decorations (struct glyph_string *s, bool box_drawn_p)
     }
 }
 
+/* Draw the part of OTHER that lies over S, in S's colors: OTHER was
+   drawn in its own and kept to its own room, so what it reaches into
+   S with is still the wrong color.  */
+
+static void
+host_draw_glyph_string_over (struct glyph_string *other,
+			     struct glyph_string *s)
+{
+  enum draw_glyphs_face was = other->hl;
+  struct host_clip clip = host_clip_now (s->f);
+
+  other->hl = s->hl;
+  host_set_glyph_string_colors (other);
+  host_set_clip (s->f, s->x, s->y, s->width, s->height);
+
+  if (other->first_glyph->type == CHAR_GLYPH)
+    host_draw_glyph_string_foreground (other);
+  else
+    host_draw_composite_glyph_string_foreground (other);
+
+  host_clip_again (s->f, clip);
+  other->hl = was;
+}
+
 static void
 host_draw_glyph_string (struct glyph_string *s)
 {
@@ -923,15 +1280,10 @@ host_draw_glyph_string (struct glyph_string *s)
   switch (s->first_glyph->type)
     {
     case STRETCH_GLYPH:
-      /* A stretch is its background and nothing else.  */
-      host_fill_area (s->f, s->x, s->y, s->background_width, s->height,
-		      s->background);
-      s->background_filled_p = true;
+      host_draw_stretch_glyph_string (s);
       break;
 
     case CHAR_GLYPH:
-    case COMPOSITE_GLYPH:
-    case GLYPHLESS_GLYPH:
       /* Drawn over what is already there when it is only the part of
 	 a glyph that reaches into another row.  */
       if (s->for_overlaps)
@@ -939,15 +1291,42 @@ host_draw_glyph_string (struct glyph_string *s)
       else
 	host_draw_glyph_string_background (s, false);
 
-      /* A glyphless character has no glyph to draw; what marks it is
-	 the box its face puts around the room kept for it.  */
-      if (s->font && s->first_glyph->type != GLYPHLESS_GLYPH)
+      if (s->font)
 	{
 	  /* The host is to have the file these glyphs are looked for
 	     in, against the day it draws them itself: a glyph is
 	     numbered by the file it is in and nothing else.  */
 	  host_font_id (s);
-	  s->font->driver->draw (s, 0, s->nchars, s->x, s->ybase, false);
+	  host_draw_glyph_string_foreground (s);
+	}
+      break;
+
+    case COMPOSITE_GLYPH:
+      /* The pieces of a static composition after the first are drawn
+	 over what the ones before them put there.  */
+      if (s->for_overlaps
+	  || (s->cmp_from > 0 && !s->first_glyph->u.cmp.automatic))
+	s->background_filled_p = true;
+      else
+	host_draw_glyph_string_background (s, true);
+
+      if (s->font)
+	{
+	  host_font_id (s);
+	  host_draw_composite_glyph_string_foreground (s);
+	}
+      break;
+
+    case GLYPHLESS_GLYPH:
+      if (s->for_overlaps)
+	s->background_filled_p = true;
+      else
+	host_draw_glyph_string_background (s, true);
+
+      if (s->font)
+	{
+	  host_font_id (s);
+	  host_draw_glyphless_glyph_string_foreground (s);
 	}
       break;
 
@@ -959,7 +1338,27 @@ host_draw_glyph_string (struct glyph_string *s)
     }
 
   if (!s->for_overlaps)
-    host_draw_glyph_string_decorations (s, box_drawn_p);
+    {
+      struct glyph_string *other;
+
+      host_draw_glyph_string_decorations (s, box_drawn_p);
+
+      /* What the strings beside this one reach into it with was drawn
+	 in their own colors and kept to their own room; the part of
+	 it that lies over this one is drawn again in these.  */
+      for (other = s->prev; other; other = other->prev)
+	if (other->hl != s->hl
+	    && other->x + other->width + other->right_overhang > s->x)
+	  host_draw_glyph_string_over (other, s);
+
+      for (other = s->next; other; other = other->next)
+	if (other->hl != s->hl
+	    && other->x - other->left_overhang < s->x + s->width)
+	  {
+	    host_draw_glyph_string_over (other, s);
+	    other->clip_head = s->next;
+	  }
+    }
 
   host_reset_clip (s->f);
 }
