@@ -39,6 +39,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "buffer.h"
 #include "fontset.h"
+/* For MOUSE_HL_INFO, which reaches into a terminal that is not one of
+   these but has to compile all the same.  */
+#include "termchar.h"
 #include "hostterm.h"
 #include "hostlib.h"
 
@@ -1688,6 +1691,36 @@ host_default_font_parameter (struct frame *f, Lisp_Object parms)
 			 RES_TYPE_STRING);
 }
 
+/* Let what the pointer is over light up again.  Redisplay draws the
+   glyphs it lights up along with the rest, so while an update is going
+   on the highlight is left alone, and dispnew.c asks for that by
+   setting this on the way in; nothing but the port takes it off.  */
+
+static void
+host_update_end (struct frame *f)
+{
+  MOUSE_HL_INFO (f)->mouse_face_defer = false;
+}
+
+/* Everything redisplay had to draw is drawn.  What the pointer is over
+   may have changed under it while that went on -- either because it
+   moved and the highlight was deferred, or because the text moved under
+   it -- and nothing else looks again once it has stopped moving.  */
+
+static void
+host_frame_up_to_date (struct frame *f)
+{
+  eassert (FRAME_HOST_P (f));
+
+  block_input ();
+  FRAME_MOUSE_UPDATE (f);
+  /* Whatever lit up is drawn into the picture and nothing else would
+     hand it over: the update it belongs to is over.  This costs nothing
+     where nothing was drawn.  */
+  flush_frame (f);
+  unblock_input ();
+}
+
 static struct redisplay_interface host_redisplay_interface =
   {
     host_frame_parm_handlers,
@@ -1732,6 +1765,8 @@ host_create_terminal (struct host_display_info *dpyinfo)
   dpyinfo->terminal = terminal;
   terminal->kboard = allocate_kboard (Qhost);
 
+  terminal->update_end_hook = host_update_end;
+  terminal->frame_up_to_date_hook = host_frame_up_to_date;
   terminal->defined_color_hook = host_defined_color;
   terminal->query_frame_background_color = host_query_frame_background_color;
   terminal->get_string_resource_hook = host_get_string_resource;
