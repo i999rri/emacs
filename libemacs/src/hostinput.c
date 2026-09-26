@@ -583,6 +583,28 @@ store (struct input_event *event, struct input_event *hold_quit, int *count)
   ++*count;
 }
 
+/* Put out what lights up under the pointer, where `mouse-highlight'
+   asks for typing to put it out: a number there means the highlight is
+   in the way of reading what was typed.  It lights up again when the
+   pointer next moves.  */
+
+static void
+host_typed (struct frame *f)
+{
+  Mouse_HLInfo *hlinfo = MOUSE_HL_INFO (f);
+  struct frame *mouse_frame = hlinfo->mouse_face_mouse_frame;
+
+  if (hlinfo->mouse_face_hidden || !FIXNUMP (Vmouse_highlight)
+      || EQ (f->tool_bar_window, hlinfo->mouse_face_window)
+      || EQ (f->tab_bar_window, hlinfo->mouse_face_window))
+    return;
+
+  clear_mouse_face (hlinfo);
+  hlinfo->mouse_face_hidden = true;
+  if (mouse_frame)
+    flush_frame (mouse_frame);
+}
+
 static void
 host_key (struct host_input *input, struct frame *f,
 	  struct input_event *hold_quit, int *count)
@@ -593,6 +615,8 @@ host_key (struct host_input *input, struct frame *f,
      Emacs has an event for.  */
   if (!input->down)
     return;
+
+  host_typed (f);
 
   EVENT_INIT (ie);
   XSETFRAME (ie.frame_or_window, f);
@@ -631,6 +655,8 @@ host_text (struct host_input *input, struct frame *f,
 
   if (!p)
     return;
+
+  host_typed (f);
 
   while (*p)
     {
@@ -718,6 +744,16 @@ host_pointer (struct host_input *input, struct frame *f,
 	 what it is over is not looked at while it is hidden, so without
 	 this nothing lights up under it once anything has been typed.  */
       frame_make_pointer_visible (f);
+
+      /* What typing put out lights up again, and where it lights up is
+	 worked out afresh: the text may have moved under the pointer
+	 while it was out.  */
+      if (hlinfo->mouse_face_hidden)
+	{
+	  hlinfo->mouse_face_hidden = false;
+	  clear_mouse_face (hlinfo);
+	}
+
       note_mouse_highlight (f, x, y);
 
       /* What lights up under the pointer is drawn as the pointer
