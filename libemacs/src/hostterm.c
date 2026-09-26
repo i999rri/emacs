@@ -1712,6 +1712,9 @@ host_frame_up_to_date (struct frame *f)
 {
   eassert (FRAME_HOST_P (f));
 
+  if (!host_highlight_after_update)
+    return;
+
   block_input ();
   FRAME_MOUSE_UPDATE (f);
   /* Whatever lit up is drawn into the picture and nothing else would
@@ -1861,6 +1864,14 @@ syms_of_hostterm (void)
 
   /* Every window system has these, and cus-start.el expects them of
      one that has `x-create-frame'.  */
+  DEFVAR_BOOL ("host-highlight-after-update", host_highlight_after_update,
+	       doc: /* Whether to look under the pointer again after drawing.
+The text under a pointer that has not moved changes all the same, as
+when the window scrolls, and nothing else would light up what is under
+it then.  Looking costs a little of every redisplay, and drawing what
+it finds costs a picture handed to the host.  */);
+  host_highlight_after_update = true;
+
   DEFVAR_BOOL ("host-draw-tab-lines", host_draw_tab_lines,
     doc: /* Whether Emacs draws the tab line of a window.
 Nil leaves the room it keeps for one alone, for a host that draws
