@@ -1691,6 +1691,44 @@ host_default_font_parameter (struct frame *f, Lisp_Object parms)
 			 RES_TYPE_STRING);
 }
 
+/* Fill the border Emacs keeps around the inside of a frame, which is
+   its own colour and not a part of any window: nothing else draws it,
+   and a child frame is mostly border.  */
+
+static void
+host_clear_under_internal_border (struct frame *f)
+{
+  int border = FRAME_INTERNAL_BORDER_WIDTH (f);
+  int width = FRAME_PIXEL_WIDTH (f);
+  int height = FRAME_PIXEL_HEIGHT (f);
+  int margin = FRAME_TOP_MARGIN_HEIGHT (f);
+  int bottom = FRAME_BOTTOM_MARGIN_HEIGHT (f);
+  int face_id;
+  struct face *face;
+
+  if (border <= 0)
+    return;
+
+  face_id = (FRAME_PARENT_FRAME (f)
+	     ? (!NILP (Vface_remapping_alist)
+		? lookup_basic_face (NULL, f, CHILD_FRAME_BORDER_FACE_ID)
+		: CHILD_FRAME_BORDER_FACE_ID)
+	     : (!NILP (Vface_remapping_alist)
+		? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
+		: INTERNAL_BORDER_FACE_ID));
+  face = FACE_FROM_ID_OR_NULL (f, face_id);
+
+  {
+    unsigned long color = (face ? face->background
+				: FRAME_BACKGROUND_PIXEL (f));
+
+    host_fill_area (f, 0, margin, width, border, color);
+    host_fill_area (f, 0, 0, border, height, color);
+    host_fill_area (f, width - border, 0, border, height, color);
+    host_fill_area (f, 0, height - bottom - border, width, border, color);
+  }
+}
+
 /* Let what the pointer is over light up again.  Redisplay draws the
    glyphs it lights up along with the rest, so while an update is going
    on the highlight is left alone, and dispnew.c asks for that by
@@ -1746,7 +1784,7 @@ static struct redisplay_interface host_redisplay_interface =
     host_draw_glyph_string,
     host_define_frame_cursor,
     host_clear_frame_area,
-    NULL, /* clear_under_internal_border */
+    host_clear_under_internal_border,
     host_draw_window_cursor,
     host_draw_vertical_window_border,
     host_draw_window_divider,
