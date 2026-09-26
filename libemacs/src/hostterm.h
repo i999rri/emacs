@@ -209,6 +209,63 @@ extern void host_blend_coverage (struct frame *, unsigned char const *, int,
 extern void host_show_picture (struct frame *);
 
 extern char *host_base64 (char *, unsigned char const *, ptrdiff_t);
+extern void host_frame_name (struct frame *, char *, size_t);
+
+/* What was drawn, said rather than drawn (hostrecord.c).  A picture
+   costs the whole of what changed in pixels; the same screen said as
+   what to draw is two orders of magnitude smaller, and a host that
+   draws the text itself draws it with the same letters as everything
+   else it draws.  */
+
+enum host_op
+  {
+    HOST_OP_FILL,
+    HOST_OP_RECTANGLE,
+    HOST_OP_LINE,
+    HOST_OP_COPY,
+    HOST_OP_CLIP,
+    HOST_OP_UNCLIP,
+    HOST_OP_GLYPHS
+  };
+
+struct host_command
+{
+  enum host_op op;
+
+  /* The box it is in.  A line runs from X,Y to WIDTH,HEIGHT, which are
+     the far corner rather than a size; a copy goes to TO_Y.  */
+  int x, y, width, height, to_y;
+  unsigned long color;
+
+  /* A run of glyphs: the font as hostfont.c numbers it, how big it is
+     drawn, and for each glyph its number in that font and where it
+     goes.  Y is the baseline.  */
+  int font, count;
+  double size;
+  unsigned short *ids;
+  int *xs;
+};
+
+struct host_record
+{
+  struct host_command *commands;
+  int count, room;
+};
+
+extern bool host_recording_p (void);
+extern void host_record_fill (struct frame *, int, int, int, int,
+			      unsigned long);
+extern void host_record_rectangle (struct frame *, int, int, int, int,
+				   unsigned long);
+extern void host_record_line (struct frame *, int, int, int, int,
+			      unsigned long);
+extern void host_record_copy (struct frame *, int, int, int, int, int);
+extern void host_record_clip (struct frame *, bool, int, int, int, int);
+extern void host_record_glyphs (struct glyph_string *, int, int, int, int,
+				int const *);
+extern void host_send_commands (struct frame *);
+extern void host_forget_commands (struct frame *);
+extern void syms_of_hostrecord (void);
 
 /* The fonts a host is to draw in (hostfont.c).  */
 extern int host_font_id (struct glyph_string *);
@@ -221,6 +278,10 @@ struct host_output
 
   /* What redisplay drew, for the host to show.  */
   struct host_picture picture;
+
+  /* What redisplay drew, said rather than drawn, where the host is to
+     draw it itself.  */
+  struct host_record record;
 
   /* The pointer shapes redisplay chooses between as the pointer moves
      over the frame, and the one it last chose.  */

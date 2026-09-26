@@ -272,6 +272,9 @@ host_set_clip (struct frame *f, int x, int y, int width, int height)
 {
   struct host_picture *picture = &FRAME_OUTPUT_DATA (f)->picture;
 
+  if (host_recording_p ())
+    host_record_clip (f, true, x, y, width, height);
+
   picture->clipped = true;
   picture->clip_x = x;
   picture->clip_y = y;
@@ -282,6 +285,9 @@ host_set_clip (struct frame *f, int x, int y, int width, int height)
 void
 host_reset_clip (struct frame *f)
 {
+  if (host_recording_p ())
+    host_record_clip (f, false, 0, 0, 0, 0);
+
   FRAME_OUTPUT_DATA (f)->picture.clipped = false;
 }
 
@@ -344,6 +350,12 @@ host_fill_area (struct frame *f, int x, int y, int width, int height,
   unsigned int pixel;
   int row, column;
 
+  if (host_recording_p ())
+    {
+      host_record_fill (f, x, y, width, height, color);
+      return;
+    }
+
   if (!picture || !host_clip (picture, &x, &y, &width, &height))
     return;
 
@@ -369,6 +381,14 @@ host_draw_rectangle (struct frame *f, int x, int y, int width, int height,
   if (width < 0 || height < 0)
     return;
 
+  /* Four sides rather than four fills: said as one, a rectangle is a
+     rectangle, where four fills would be four of them.  */
+  if (host_recording_p ())
+    {
+      host_record_rectangle (f, x, y, width, height, color);
+      return;
+    }
+
   host_fill_area (f, x, y, width + 1, 1, color);
   host_fill_area (f, x, y + height, width + 1, 1, color);
   host_fill_area (f, x, y, 1, height + 1, color);
@@ -388,6 +408,13 @@ host_draw_line (struct frame *f, int x0, int y0, int x1, int y1,
   int dx = abs (x1 - x0), dy = -abs (y1 - y0);
   int step_x = x0 < x1 ? 1 : -1, step_y = y0 < y1 ? 1 : -1;
   int error = dx + dy;
+
+  /* One line rather than the pixels it walks through.  */
+  if (host_recording_p ())
+    {
+      host_record_line (f, x0, y0, x1, y1, color);
+      return;
+    }
 
   while (true)
     {
@@ -427,6 +454,12 @@ host_move_area (struct frame *f, int x, int from_y, int width, int height,
   int left = max (x, 0);
   int right = min (x + width, picture ? picture->width : 0);
   int row;
+
+  if (host_recording_p ())
+    {
+      host_record_copy (f, x, from_y, width, height, to_y);
+      return;
+    }
 
   if (!picture || right <= left || height <= 0 || from_y == to_y)
     return;
@@ -548,7 +581,7 @@ host_base64 (char *to, unsigned char const *from, ptrdiff_t length)
 /* The name Lisp knows F by, which is what names the element its
    picture is shown in (`urusi-screen--frame-name').  */
 
-static void
+void
 host_frame_name (struct frame *f, char *name, size_t room)
 {
   Lisp_Object frame;
@@ -573,6 +606,13 @@ host_show_picture (struct frame *f)
   const struct host_api *api = host_current_api ();
   char name[32];
   ptrdiff_t room = 0;
+
+  if (host_recording_p ())
+    {
+      host_send_commands (f);
+      return;
+    }
+
   unsigned char *box;
   char *message, *at;
   int i, row;

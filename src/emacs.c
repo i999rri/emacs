@@ -2480,6 +2480,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #endif /* HAVE_ANDROID */
 #ifdef HAVE_HOST
       syms_of_hostterm ();
+      syms_of_hostrecord ();
       syms_of_hostinput ();
       syms_of_hostfns ();
       syms_of_fontset ();

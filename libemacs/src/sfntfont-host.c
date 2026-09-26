@@ -74,6 +74,18 @@ sfntfont_host_put_glyphs (struct glyph_string *s, int from, int to,
 
   prepare_face_for_display (s->f, s->face);
 
+  /* Said rather than drawn, the glyphs are numbers in the font file
+     Emacs read, which hostfont.c hands the host so that both are
+     numbering the glyphs of the same font.  */
+  if (host_recording_p ())
+    {
+      if (with_background)
+	host_record_fill (s->f, x, y - FONT_BASE (s->font), s->width,
+			  FONT_HEIGHT (s->font), s->background);
+      host_record_glyphs (s, from, to, y, to - from, x_coords);
+      return;
+    }
+
   if (with_background)
     host_fill_area (s->f, x, y - FONT_BASE (s->font), s->width,
 		    FONT_HEIGHT (s->font), s->background);
