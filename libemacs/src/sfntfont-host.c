@@ -313,11 +313,21 @@ default_font_directories (void)
   return list;
 }
 
+/* Whether the glyphs are wanted as pixels, which they are not while
+   the host is being told what to draw.  */
+
+static bool
+sfntfont_host_wants_rasters (void)
+{
+  return !host_recording_p ();
+}
+
 static void
 syms_of_sfntfont_host_for_pdumper (void)
 {
   init_sfntfont_vendor (Qsfnt_host, &host_sfntfont_driver,
 			sfntfont_host_put_glyphs);
+  sfntfont_wanting_rasters (sfntfont_host_wants_rasters);
   register_font_driver (&host_sfntfont_driver, NULL);
 }
 

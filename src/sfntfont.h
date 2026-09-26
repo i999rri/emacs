@@ -61,6 +61,12 @@ extern void mark_sfntfont (void);
 extern void init_sfntfont_vendor (Lisp_Object, const struct font_driver *,
 				  sfntfont_put_glyph_proc);
 
+/* Whether the glyphs are wanted as pixels.  A port that says what to
+   draw rather than drawing it wants only which glyph goes where, and
+   rasterizing them would be work thrown away.  */
+typedef bool (*sfntfont_wants_rasters_proc) (void);
+extern void sfntfont_wanting_rasters (sfntfont_wants_rasters_proc);
+
 
 /* mmap specific functions.  */
 

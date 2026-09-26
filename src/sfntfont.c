@@ -3689,6 +3689,16 @@ sfntfont_close (struct font *font)
 /* Function called to actually draw rasters to the glass.  */
 static sfntfont_put_glyph_proc sfnt_put_glyphs;
 
+/* Whether the port wants the glyphs as pixels; null is the same as
+   wanting them.  */
+static sfntfont_wants_rasters_proc sfnt_wants_rasters;
+
+void
+sfntfont_wanting_rasters (sfntfont_wants_rasters_proc wants)
+{
+  sfnt_wants_rasters = wants;
+}
+
 /* Draw glyphs in S->char2b starting from FROM to TO, with the origin
    at X and baseline at Y.  Fill the background from X, Y +
    FONT_DESCENT to X + S->background_width, Y - FONT_ASCENT with the
@@ -3706,6 +3716,7 @@ sfntfont_draw (struct glyph_string *s, int from, int to,
   struct font *font;
   struct sfnt_font_info *info;
   struct sfnt_glyph_metrics metrics;
+  bool as_pixels = !sfnt_wants_rasters || sfnt_wants_rasters ();
 
   length = to - from;
   font = s->font;
@@ -3738,6 +3749,19 @@ sfntfont_draw (struct glyph_string *s, int from, int to,
       if (!outline)
 	{
 	  rasters[i - from] = NULL;
+	  continue;
+	}
+
+      /* Where the port says what to draw rather than drawing it, the
+	 pixels of the glyph are no use to it: which glyph it is and
+	 where it goes is the whole of what it asked for, and drawing
+	 it here would be drawing it twice.  */
+      if (!as_pixels)
+	{
+	  rasters[i - from] = NULL;
+	  x_coords[i - from] = current_x;
+	  current_x += s->padding_p ? 1 : metrics.advance / 65536;
+	  sfntfont_dereference_outline (outline);
 	  continue;
 	}
 
