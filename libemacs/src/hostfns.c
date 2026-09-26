@@ -443,7 +443,12 @@ Return the frame.  PARMS is an alist of frame parameters.  */)
   FRAME_OUTPUT_DATA (f)->bottom_edge_cursor = HOST_CURSOR (HOST_POINTER_BOTTOM_EDGE);
   FRAME_OUTPUT_DATA (f)->bottom_left_corner_cursor
     = HOST_CURSOR (HOST_POINTER_BOTTOM_LEFT_CORNER);
-  FRAME_OUTPUT_DATA (f)->current_cursor = HOST_CURSOR (HOST_POINTER_TEXT);
+  /* None to begin with, whatever the host has its pointer looking
+     like: redisplay tells the host only when the shape it settles on
+     is not the one it settled on last, and a frame that began by
+     saying it had already asked for one would leave the first ask
+     unsaid.  */
+  FRAME_OUTPUT_DATA (f)->current_cursor = HOST_CURSOR (HOST_POINTER_NONE);
   FRAME_DISPLAY_INFO (f) = dpyinfo;
   FRAME_FONTSET (f) = -1;
 
