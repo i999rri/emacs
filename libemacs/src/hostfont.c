@@ -51,9 +51,13 @@ struct host_font
 {
   struct host_font *next;
 
-  /* The file it was read from, and which face of that file.  */
+  /* The file it was read from, where in that file its tables begin,
+     and which font of the file that comes to: a .ttc holds many, and
+     the name of the file tells them not at all apart.  */
   char *path;
   int instance;
+  off_t offset;
+  int face;
 
   /* What the host knows it by.  */
   int id;
@@ -66,6 +70,58 @@ static int host_fonts_named;
    was read, which is how the host tells a file it already has from one
    it does not.  */
 
+/* Which font of the collection in PATH begins at OFFSET, or 0 where the
+   file holds one font and there is nothing to choose between.
+
+   A collection begins with the tag "ttcf", how many fonts it holds, and
+   where each of them begins; anything else is a font on its own.  What
+   is sent is the number rather than the offset, because that is what a
+   host asks its own drawing for: every system counts the fonts of a
+   file, and none of them is told to measure into one.  */
+
+static int
+host_font_face (const char *path, off_t offset)
+{
+  unsigned char header[12];
+  int file, face = 0;
+  unsigned long count, i;
+
+  if (offset <= 0)
+    return 0;
+
+  file = emacs_open (path, O_RDONLY, 0);
+  if (file < 0)
+    return 0;
+
+  if (emacs_read_quit (file, header, sizeof header) == sizeof header
+      && !memcmp (header, "ttcf", 4))
+    {
+      count = ((unsigned long) header[8] << 24)
+	      | ((unsigned long) header[9] << 16)
+	      | ((unsigned long) header[10] << 8) | header[11];
+
+      for (i = 0; i < count; i++)
+	{
+	  unsigned char where[4];
+
+	  if (emacs_read_quit (file, where, sizeof where) != sizeof where)
+	    break;
+
+	  if ((((unsigned long) where[0] << 24)
+	       | ((unsigned long) where[1] << 16)
+	       | ((unsigned long) where[2] << 8) | where[3])
+	      == (unsigned long) offset)
+	    {
+	      face = (int) i;
+	      break;
+	    }
+	}
+    }
+
+  emacs_close (file);
+  return face;
+}
+
 static void
 host_font_say (const struct host_api *api, struct host_font *font)
 {
@@ -77,8 +133,9 @@ host_font_say (const struct host_api *api, struct host_font *font)
 
   message = xmalloc (256 + 2 * strlen (font->path));
   sprintf (message,
-	   "{\"type\":\"font\",\"id\":%d,\"instance\":%d,\"file\":\"",
-	   font->id, font->instance);
+	   "{\"type\":\"font\",\"id\":%d,\"instance\":%d,\"face\":%d,"
+	   "\"file\":\"",
+	   font->id, font->instance, font->face);
 
   /* The name as JSON: a path may hold a backslash or a quotation
      mark, and nothing else in it has to be escaped.  */
@@ -110,6 +167,7 @@ host_font_id (struct glyph_string *s)
   struct host_font *font;
   const char *path;
   int instance = -1;
+  off_t offset;
 
   if (!api || !s->font)
     return -1;
@@ -117,14 +175,18 @@ host_font_id (struct glyph_string *s)
   path = sfntfont_file_name (s->font, &instance);
   if (!path)
     return -1;
+  offset = sfntfont_file_offset (s->font);
 
   for (font = host_fonts; font; font = font->next)
-    if (font->instance == instance && !strcmp (font->path, path))
+    if (font->instance == instance && font->offset == offset
+	&& !strcmp (font->path, path))
       return font->id;
 
   font = xmalloc (sizeof *font);
   font->path = xstrdup (path);
   font->instance = instance;
+  font->offset = offset;
+  font->face = host_font_face (path, offset);
   font->id = host_fonts_named++;
   font->next = host_fonts;
   host_fonts = font;

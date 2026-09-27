@@ -46,6 +46,7 @@ extern Lisp_Object sfntfont_list_family (struct frame *);
    a window system that hands the font itself to whatever draws for
    it.  Returns NULL if FONT was not read from a file.  */
 extern const char *sfntfont_file_name (struct font *, int *);
+extern off_t sfntfont_file_offset (struct font *);
 extern int sfntfont_get_variation_glyphs (struct font *, int, unsigned[256]);
 
 

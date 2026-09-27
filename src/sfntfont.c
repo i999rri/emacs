@@ -3821,6 +3821,18 @@ sfntfont_file_name (struct font *font, int *instance)
   return info->desc->path;
 }
 
+/* Where in its file the tables of FONT begin, which is what tells one
+   font of a collection from another: a .ttc holds many, and the name of
+   the file says nothing about which of them this is.  */
+
+off_t
+sfntfont_file_offset (struct font *font)
+{
+  struct sfnt_font_info *info = (struct sfnt_font_info *) font;
+
+  return info->desc ? info->desc->offset : 0;
+}
+
 /* Other callbacks.  */
 
 /* Return a list of each font family known to Emacs.  F is supposed to
