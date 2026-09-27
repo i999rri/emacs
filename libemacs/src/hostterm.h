@@ -344,6 +344,9 @@ extern void syms_of_hostterm (void);
 extern void syms_of_hostinput (void);
 
 /* hostfns.c */
+extern struct host_pixmap *host_make_pixmap (int, int, int);
+extern void host_free_pixmap (struct frame *, Emacs_Pixmap);
+extern ptrdiff_t host_pixmap_size (Emacs_Pixmap);
 extern unsigned long host_get_pixel (struct host_pixmap *, int, int);
 extern void host_put_pixel (struct host_pixmap *, int, int, unsigned long);
 extern void syms_of_hostfns (void);

@@ -80,9 +80,68 @@ gamma_correct (struct frame *f, Emacs_Color *color)
     }
 }
 
-/* Images.  image.c reads and writes pixels through these, but nothing
-   makes a host pixmap yet.  TODO: images, which the host is to draw
-   (see image_create_x_image_and_pixmap_1 in image.c).  */
+/* Images.  A pixmap is pixels in memory and nothing else: image.c
+   decodes into one through the two below, and what is drawn from it is
+   the host's to do.  */
+
+/* A pixmap of WIDTH by HEIGHT at DEPTH, or null if that is no size for
+   one.  DEPTH is 24 for an image and 1 for the mask that says which of
+   its pixels are to be drawn.
+
+   Its pixels begin as zero, because a loader that writes only some of
+   them leaves the rest to be read: read as whatever was in memory, an
+   image would differ from one run to the next.  */
+
+struct host_pixmap *
+host_make_pixmap (int width, int height, int depth)
+{
+  struct host_pixmap *pixmap;
+  ptrdiff_t row;
+
+  if (width <= 0 || height <= 0)
+    return NULL;
+
+  row = width * sizeof *pixmap->pixels;
+  pixmap = xzalloc (sizeof *pixmap);
+  pixmap->width = width;
+  pixmap->height = height;
+  pixmap->depth = depth;
+  /* Signals rather than returns when there is no room, as the rest of
+     Emacs does; xnmalloc signals on a height that overflows the size.  */
+  pixmap->pixels = xnmalloc (height, row);
+  memset (pixmap->pixels, 0, height * row);
+
+  return pixmap;
+}
+
+/* Let go of PIXMAP.  Registered as the terminal's free_pixmap, which is
+   what image.c lets go of both an image and its mask through.  */
+
+void
+host_free_pixmap (struct frame *f, Emacs_Pixmap pixmap)
+{
+  struct host_pixmap *it = pixmap;
+
+  if (!it)
+    return;
+
+  xfree (it->pixels);
+  xfree (it);
+}
+
+/* How much of the image cache PIXMAP accounts for.  */
+
+ptrdiff_t
+host_pixmap_size (Emacs_Pixmap pixmap)
+{
+  struct host_pixmap *it = pixmap;
+
+  if (!it)
+    return 0;
+
+  return (sizeof *it
+	  + it->width * (ptrdiff_t) it->height * sizeof *it->pixels);
+}
 
 unsigned long
 host_get_pixel (struct host_pixmap *pixmap, int x, int y)

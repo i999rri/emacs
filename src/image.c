@@ -2531,6 +2531,10 @@ image_size_in_bytes (struct image *img)
     size += BBitmap_bytes_length (img->pixmap);
   if (img->mask)
     size += BBitmap_bytes_length (img->mask);
+
+#elif defined HAVE_HOST
+  size += host_pixmap_size (img->pixmap);
+  size += host_pixmap_size (img->mask);
 #endif
 
   return size;
@@ -4218,10 +4222,29 @@ image_create_x_image_and_pixmap_1 (struct frame *f, int width, int height, int d
 #endif
 
 #ifdef HAVE_HOST
-  /* TODO: images, for the host to draw.  */
-  *pimg = NULL;
-  image_error ("Images are not shown on host frames yet");
-  return 0;
+  if (depth == 0)
+    depth = 24;
+
+  if (depth != 24 && depth != 1)
+    {
+      *pimg = NULL;
+      image_error ("Invalid image bit depth specified");
+      return 0;
+    }
+
+  *pixmap = host_make_pixmap (width, height, depth);
+
+  if (*pixmap == NO_PIXMAP)
+    {
+      *pimg = NULL;
+      image_error ("Unable to create pixmap");
+      return 0;
+    }
+
+  /* The one object, as on Haiku: what is decoded into is what is kept,
+     so nothing has to be put from the one to the other.  */
+  *pimg = *pixmap;
+  return 1;
 #endif
 }
 
@@ -5034,6 +5057,23 @@ Create_Pixmap_From_Bitmap_Data (struct frame *f, struct image *img, char *data,
   img->pixmap = ns_image_from_XBM (data, img->width, img->height, fg, bg);
 #elif defined HAVE_HAIKU
   img->pixmap = BBitmap_new (img->width, img->height, 0);
+
+  if (img->pixmap)
+    {
+      int bytes_per_line = (img->width + 7) / 8;
+
+      for (int y = 0; y < img->height; y++)
+	{
+	  for (int x = 0; x < img->width; x++)
+	    PUT_PIXEL (img->pixmap, x, y,
+		       (data[x / 8] >> (x % 8)) & 1 ? fg : bg);
+	  data += bytes_per_line;
+	}
+    }
+#elif defined HAVE_HOST
+  /* A bitmap says which pixels are the foreground and no more, so it is
+     painted in the two colours asked for rather than kept as bits.  */
+  img->pixmap = host_make_pixmap (img->width, img->height, 24);
 
   if (img->pixmap)
     {
@@ -6912,7 +6952,7 @@ lookup_rgb_color (struct frame *f, int r, int g, int b)
 #ifdef HAVE_NTGUI
   return PALETTERGB (r >> 8, g >> 8, b >> 8);
 #elif defined USE_CAIRO || defined HAVE_NS || defined HAVE_HAIKU	\
-  || defined HAVE_ANDROID
+  || defined HAVE_ANDROID || defined HAVE_HOST
   return RGB_TO_ULONG (r >> 8, g >> 8, b >> 8);
 #else
   xsignal1 (Qfile_error,

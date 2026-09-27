@@ -1810,6 +1810,10 @@ host_create_terminal (struct host_display_info *dpyinfo)
   terminal->frame_up_to_date_hook = host_frame_up_to_date;
   terminal->defined_color_hook = host_defined_color;
   terminal->query_frame_background_color = host_query_frame_background_color;
+  /* What image.c lets an image and its mask go of through, and the only
+     image hook a terminal has: without it the image cache crashes as
+     soon as it drops anything.  */
+  terminal->free_pixmap = host_free_pixmap;
   terminal->get_string_resource_hook = host_get_string_resource;
   terminal->set_new_font_hook = host_new_font;
   terminal->set_window_size_hook = host_set_window_size;
