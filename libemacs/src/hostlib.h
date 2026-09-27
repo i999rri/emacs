@@ -49,6 +49,13 @@ extern char *host_take_input (void);
 /* Whether there is a message waiting for Lisp to take.  */
 extern bool host_lisp_pending_p (void);
 
+/* Whether Lisp has been told of the messages waiting, and saying that
+   it has been.  Told once for all of them, since being told is an event
+   in the keyboard buffer and the keys wait there too.  Forgotten as
+   Lisp takes the messages, so whoever is told must take them.  */
+extern bool host_lisp_told_p (void);
+extern void host_lisp_told (void);
+
 /* Say to Lisp what C has done, as though the host had said it.  */
 extern void host_notify (const char *message);
 

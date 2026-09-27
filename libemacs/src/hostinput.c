@@ -876,26 +876,26 @@ host_read_socket (struct terminal *terminal, struct input_event *hold_quit)
      where Emacs learns there are any: the host wrote to the pipe for
      these as well as for input.  An event carries the handling into
      the command loop, where Lisp may run.  */
-  {
-    /* One at a time: the keyboard buffer is where keys and the pointer
-       wait too, and it is not endless.  Another event while the first
-       is still there would say nothing new and would crowd them out.  */
-    static bool told;
+  /* One at a time: the keyboard buffer is where keys and the pointer
+     wait too, and it is not endless.  Another event while the first is
+     still there would say nothing new and would crowd them out.  The
+     telling is forgotten where the messages are taken and not here,
+     since Emacs is woken to read this by a message arriving and not by
+     Lisp reading one: told from the emptiness of the queue instead, a
+     look that found it empty was the only chance to forget, and the
+     message after the one Lisp took was announced to nobody.  */
+  if (host_lisp_pending_p () && !host_lisp_told_p ()
+      && !NILP (Vhost_message_function))
+    {
+      struct input_event ie;
 
-    if (!host_lisp_pending_p ())
-      told = false;
-    else if (!told && !NILP (Vhost_message_function))
-      {
-	struct input_event ie;
-
-	EVENT_INIT (ie);
-	ie.kind = NOTIFICATION_EVENT;
-	ie.arg = Fcons (Vhost_message_function, Qnil);
-	kbd_buffer_store_event_hold (&ie, hold_quit);
-	told = true;
-	count++;
-      }
-  }
+      EVENT_INIT (ie);
+      ie.kind = NOTIFICATION_EVENT;
+      ie.arg = Fcons (Vhost_message_function, Qnil);
+      kbd_buffer_store_event_hold (&ie, hold_quit);
+      host_lisp_told ();
+      count++;
+    }
 
   /* The help echo of what the pointer is over, or none any more.  */
   if (help && !(hold_quit && hold_quit->kind != NO_EVENT))

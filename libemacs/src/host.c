@@ -66,6 +66,14 @@ static struct host_queue lisp_queue;
 static struct host_queue input_queue;
 static sys_mutex_t event_lock;
 
+/* Whether Lisp has been told that there are messages in lisp_queue.
+   Kept beside the queue because it is the queue being taken that makes
+   it worth telling again, and only the taking knows when that was.
+   Wrong in the safe direction if it is read between a message arriving
+   and the taking: Lisp is told once more than it needed, and finds
+   nothing waiting.  */
+static bool lisp_told;
+
 /* Stop a queue from growing without bound if nothing takes the events,
    as when the host sends to an Emacs that is busy or wedged.  The
    oldest go first: the newest are the ones still worth acting on.  */
@@ -251,6 +259,31 @@ host_lisp_pending_p (void)
   return any;
 }
 
+bool
+host_lisp_told_p (void)
+{
+  bool told;
+
+  if (!host_api)
+    return false;
+
+  sys_mutex_lock (&event_lock);
+  told = lisp_told;
+  sys_mutex_unlock (&event_lock);
+  return told;
+}
+
+void
+host_lisp_told (void)
+{
+  if (!host_api)
+    return;
+
+  sys_mutex_lock (&event_lock);
+  lisp_told = true;
+  sys_mutex_unlock (&event_lock);
+}
+
 char *
 host_take_input (void)
 {
@@ -325,6 +358,9 @@ reads keys and the pointer, is not among them.  */)
   taken = lisp_queue.head;
   lisp_queue.head = lisp_queue.tail = NULL;
   lisp_queue.pending = 0;
+  /* Whoever is told next has something to be told about: the messages
+     that arrive after these, which nothing has announced yet.  */
+  lisp_told = false;
   sys_mutex_unlock (&event_lock);
 
   while (taken)
