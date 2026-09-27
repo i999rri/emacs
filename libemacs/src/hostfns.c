@@ -37,6 +37,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "fontset.h"
 #include "hostterm.h"
+#include "hostlib.h"
 
 /* The display OBJECT names: a terminal, a frame, a display name or
    nil for the selected frame's.  There is only one, and it is opened
@@ -114,6 +115,111 @@ host_make_pixmap (int width, int height, int depth)
   return pixmap;
 }
 
+/* The images the host has been told of, so that the pixels of one are
+   sent once however often it is drawn, as hostfont.c does with the file
+   of a font.  An image and its mask are one image here: what the host
+   is given is what it draws, and it draws pixels that are already as
+   transparent as the mask says.  */
+
+struct host_image
+{
+  struct host_image *next;
+  int id;
+  struct host_pixmap *pixels, *mask;
+};
+
+static struct host_image *host_images;
+static int host_images_named;
+
+/* The number the host knows the image of PIXELS and MASK by, naming it
+   if it has no number yet.  MASK may be null, for an image all of which
+   shows.  */
+
+int
+host_image_id (struct host_pixmap *pixels, struct host_pixmap *mask)
+{
+  struct host_image *image;
+
+  for (image = host_images; image; image = image->next)
+    if (image->pixels == pixels && image->mask == mask)
+      return image->id;
+
+  image = xmalloc (sizeof *image);
+  image->id = host_images_named++;
+  image->pixels = pixels;
+  image->mask = mask;
+  image->next = host_images;
+  host_images = image;
+
+  return image->id;
+}
+
+/* Send the host the pixels of the image it knows by ID, which it asks
+   for when it has something to draw from an image and has not its
+   pixels.
+
+   Sent as the host draws them and not as Emacs holds them: four bytes
+   to a pixel, blue first as Windows counts them, and the alpha the mask
+   decided rather than the mask itself.  Emacs is the one that knows
+   what a mask means, so it is the one that applies it; the host is left
+   with pixels and nothing to decide.  */
+
+void
+host_image_wanted (int id)
+{
+  const struct host_api *api = host_current_api ();
+  struct host_image *image;
+  struct host_pixmap *pixels;
+  ptrdiff_t count, room, i;
+  unsigned char *bytes;
+  char *message, *at;
+
+  if (!api)
+    return;
+
+  for (image = host_images; image; image = image->next)
+    if (image->id == id)
+      break;
+  if (!image || !image->pixels)
+    return;
+
+  pixels = image->pixels;
+  count = pixels->width * (ptrdiff_t) pixels->height;
+  bytes = xnmalloc (count, 4);
+
+  for (i = 0; i < count; i++)
+    {
+      unsigned long pixel = pixels->pixels[i];
+      /* Drawn where the mask says so, and nowhere else.  A mask of
+	 another size than the image is no mask: reading it by the
+	 image's own count would read past its end.  */
+      bool shown = !(image->mask
+		     && image->mask->width == pixels->width
+		     && image->mask->height == pixels->height
+		     && !image->mask->pixels[i]);
+
+      /* Already multiplied by the alpha, which is what Direct2D reads:
+	 what does not show is nothing rather than black.  */
+      bytes[i * 4 + 0] = shown ? pixel & 0xff : 0;
+      bytes[i * 4 + 1] = shown ? (pixel >> 8) & 0xff : 0;
+      bytes[i * 4 + 2] = shown ? (pixel >> 16) & 0xff : 0;
+      bytes[i * 4 + 3] = shown ? 0xff : 0;
+    }
+
+  room = 128 + 4 * ((count * 4 + 2) / 3) + 4;
+  message = xmalloc (room);
+  at = message + sprintf (message,
+			  "{\"type\":\"image\",\"id\":%d,\"width\":%d,"
+			  "\"height\":%d,\"pixels\":\"",
+			  image->id, pixels->width, pixels->height);
+  at = host_base64 (at, bytes, count * 4);
+  strcpy (at, "\"}");
+
+  api->post (message);
+  xfree (message);
+  xfree (bytes);
+}
+
 /* Let go of PIXMAP.  Registered as the terminal's free_pixmap, which is
    what image.c lets go of both an image and its mask through.  */
 
@@ -121,9 +227,35 @@ void
 host_free_pixmap (struct frame *f, Emacs_Pixmap pixmap)
 {
   struct host_pixmap *it = pixmap;
+  struct host_image **link = &host_images;
+  const struct host_api *api = host_current_api ();
 
   if (!it)
     return;
+
+  /* Whatever was numbered for the host from this is numbered for
+     nothing now, and the host is told so rather than left holding
+     pixels nothing will ask it to draw again.  */
+  while (*link)
+    {
+      struct host_image *image = *link;
+
+      if (image->pixels == it || image->mask == it)
+	{
+	  char message[64];
+
+	  *link = image->next;
+	  if (api)
+	    {
+	      sprintf (message, "{\"type\":\"image-gone\",\"id\":%d}",
+		       image->id);
+	      api->post (message);
+	    }
+	  xfree (image);
+	}
+      else
+	link = &image->next;
+    }
 
   xfree (it->pixels);
   xfree (it);
@@ -154,6 +286,17 @@ host_put_pixel (struct host_pixmap *pixmap, int x, int y,
 		unsigned long pixel)
 {
   pixmap->pixels[y * pixmap->width + x] = pixel;
+}
+
+DEFUN ("host-send-image", Fhost_send_image, Shost_send_image, 1, 1, 0,
+       doc: /* Send the host the pixels of the image it knows by ID.
+The host asks for one when it has something to draw from an image and
+has not its pixels.  */)
+  (Lisp_Object id)
+{
+  CHECK_FIXNUM (id);
+  host_image_wanted (XFIXNUM (id));
+  return Qnil;
 }
 
 /* Frame parameters.  */
@@ -1001,4 +1144,5 @@ syms_of_hostfns (void)
   defsubr (&Shost_frame_geometry);
   defsubr (&Shost_frame_edges);
   defsubr (&Shost_frame_restack);
+  defsubr (&Shost_send_image);
 }

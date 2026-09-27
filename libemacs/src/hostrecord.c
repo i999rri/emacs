@@ -124,6 +124,26 @@ host_record_line (struct frame *f, int x0, int y0, int x1, int y1,
   command->color = color;
 }
 
+/* The part of IMAGE that begins at FROM_X,FROM_Y in it, drawn in the
+   box X,Y by WIDTH,HEIGHT.  The pixels are not here: the host asks for
+   them once by the number, and draws them as often as it is told to,
+   the way it does with the file of a font.  */
+
+void
+host_record_image (struct frame *f, int image, int from_x, int from_y,
+		   int x, int y, int width, int height)
+{
+  struct host_command *command = host_next_command (f, HOST_OP_IMAGE);
+
+  command->image = image;
+  command->from_x = from_x;
+  command->from_y = from_y;
+  command->x = x;
+  command->y = y;
+  command->width = width;
+  command->height = height;
+}
+
 void
 host_record_copy (struct frame *f, int x, int y, int width, int height,
 		  int to_y)
@@ -249,6 +269,14 @@ host_say_command (char *at, struct host_command const *command)
 
     case HOST_OP_UNCLIP:
       at += sprintf (at, "{\"type\":\"draw\",\"op\":\"unclip\"");
+      break;
+
+    case HOST_OP_IMAGE:
+      at += sprintf (at, "{\"type\":\"draw\",\"op\":\"image\",\"image\":%d,"
+		     "\"fromX\":%d,\"fromY\":%d,\"x\":%d,\"y\":%d,"
+		     "\"width\":%d,\"height\":%d",
+		     command->image, command->from_x, command->from_y,
+		     command->x, command->y, command->width, command->height);
       break;
 
     case HOST_OP_GLYPHS:

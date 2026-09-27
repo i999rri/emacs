@@ -982,6 +982,46 @@ host_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
   s->char2b = NULL;
 }
 
+/* Draw S, which is an image, or the slice of one that falls in this
+   row: a tall image is drawn a row at a time, each row saying the same
+   image with another corner of it.
+
+   Said rather than drawn even when the host is handed pixels otherwise,
+   since there is nothing here to draw an image into: the picture is
+   made of what the glyphs came to, and an image is not glyphs.  A host
+   that is handed pixels is handed the background and no image, which is
+   the room the image would have taken.  */
+
+static void
+host_draw_image_glyph_string (struct glyph_string *s)
+{
+  int box = max (s->face->box_vertical_line_width, 0);
+  int x, y;
+
+  if (!s->img->pixmap || !host_recording_p ())
+    return;
+
+  x = s->x;
+  y = s->ybase - image_ascent (s->img, s->face, &s->slice);
+
+  /* Beside the line the box draws, and inside the margin the image
+     asked for, where the slice drawn is the one those are on.  */
+  if (s->face->box != FACE_NO_BOX
+      && s->first_glyph->left_box_line_p
+      && s->slice.x == 0)
+    x += box;
+  if (s->slice.x == 0)
+    x += s->img->hmargin;
+  if (s->slice.y == 0)
+    y += s->img->vmargin;
+
+  /* Clipped by the clip the caller set for the string, as everything
+     said is: what falls outside the row is the host's to leave out.  */
+  host_record_image (s->f, host_image_id (s->img->pixmap, s->img->mask),
+		     s->slice.x, s->slice.y, x, y,
+		     s->slice.width, s->slice.height);
+}
+
 /* Draw S, which is a stretch of blank as wide as it was given room
    for: a tab, or what a `display' property of (space . ...) asks for.
 
@@ -1333,9 +1373,17 @@ host_draw_glyph_string (struct glyph_string *s)
 	}
       break;
 
+    case IMAGE_GLYPH:
+      /* Filled in behind first, always: an image with a mask shows what
+	 is behind it through the mask, and one that did not load shows
+	 nothing but what is behind it.  */
+      host_draw_glyph_string_background (s, true);
+      host_draw_image_glyph_string (s);
+      break;
+
     default:
-      /* Images and xwidgets are still to be drawn; the room kept for
-	 them comes out as their background until they are.  */
+      /* Xwidgets are still to be drawn; the room kept for them comes
+	 out as their background until they are.  */
       host_draw_glyph_string_background (s, true);
       break;
     }

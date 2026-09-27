@@ -225,7 +225,8 @@ enum host_op
     HOST_OP_COPY,
     HOST_OP_CLIP,
     HOST_OP_UNCLIP,
-    HOST_OP_GLYPHS
+    HOST_OP_GLYPHS,
+    HOST_OP_IMAGE
   };
 
 struct host_command
@@ -244,6 +245,12 @@ struct host_command
   double size;
   unsigned short *ids;
   int *xs;
+
+  /* An image: which one, as hostfns.c numbers it, and where in the
+     image the part being drawn begins.  The box is where that part
+     goes, so a row that shows a slice of a tall image says the same
+     image with another corner of it.  */
+  int image, from_x, from_y;
 };
 
 struct host_record
@@ -263,6 +270,8 @@ extern void host_record_copy (struct frame *, int, int, int, int, int);
 extern void host_record_clip (struct frame *, bool, int, int, int, int);
 extern void host_record_glyphs (struct glyph_string *, int, int, int, int,
 				int const *);
+extern void host_record_image (struct frame *, int, int, int, int, int,
+			       int, int);
 extern void host_send_commands (struct frame *);
 extern void host_forget_commands (struct frame *);
 extern void syms_of_hostrecord (void);
@@ -347,6 +356,14 @@ extern void syms_of_hostinput (void);
 extern struct host_pixmap *host_make_pixmap (int, int, int);
 extern void host_free_pixmap (struct frame *, Emacs_Pixmap);
 extern ptrdiff_t host_pixmap_size (Emacs_Pixmap);
+
+/* The images a host is to draw, numbered so that its pixels are sent
+   once and drawn as often as they are wanted, as a font's file is.  An
+   image and the mask that says which of its pixels show are one image
+   to the host, since what it is given is what it draws.  */
+extern int host_image_id (struct host_pixmap *, struct host_pixmap *);
+extern void host_image_wanted (int);
+
 extern unsigned long host_get_pixel (struct host_pixmap *, int, int);
 extern void host_put_pixel (struct host_pixmap *, int, int, unsigned long);
 extern void syms_of_hostfns (void);
