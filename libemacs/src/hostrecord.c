@@ -124,24 +124,39 @@ host_record_line (struct frame *f, int x0, int y0, int x1, int y1,
   command->color = color;
 }
 
-/* The part of IMAGE that begins at FROM_X,FROM_Y in it, drawn in the
-   box X,Y by WIDTH,HEIGHT.  The pixels are not here: the host asks for
-   them once by the number, and draws them as often as it is told to,
-   the way it does with the file of a font.  */
+/* The image of S, drawn within the box X,Y by WIDTH,HEIGHT.
+
+   The pixels are not here: the host asks for them once by the number,
+   and draws them as often as it is told to, the way it does with the
+   file of a font.  Nor is the size it is drawn at: the matrix says
+   that, and says which part of the image this row shows, by carrying
+   the image's corner to where that part goes.  A host that is told the
+   matrix has nothing to work out.  */
 
 void
-host_record_image (struct frame *f, int image, int from_x, int from_y,
+host_record_image (struct frame *f, struct glyph_string *s,
 		   int x, int y, int width, int height)
 {
   struct host_command *command = host_next_command (f, HOST_OP_IMAGE);
+  struct image *img = s->img;
 
-  command->image = image;
-  command->from_x = from_x;
-  command->from_y = from_y;
+  command->image = host_image_id (img->pixmap, img->mask);
+  command->original_width = img->original_width;
+  command->original_height = img->original_height;
   command->x = x;
   command->y = y;
   command->width = width;
   command->height = height;
+  command->smooth = img->use_bilinear_filtering;
+
+  /* The image's own transformation, and after it the move that takes
+     the corner of the image to where the corner of this slice goes.  */
+  command->matrix[0] = img->transform[0][0];
+  command->matrix[1] = img->transform[1][0];
+  command->matrix[2] = img->transform[0][1];
+  command->matrix[3] = img->transform[1][1];
+  command->matrix[4] = img->transform[0][2] + x - s->slice.x;
+  command->matrix[5] = img->transform[1][2] + y - s->slice.y;
 }
 
 void
@@ -273,10 +288,16 @@ host_say_command (char *at, struct host_command const *command)
 
     case HOST_OP_IMAGE:
       at += sprintf (at, "{\"type\":\"draw\",\"op\":\"image\",\"image\":%d,"
-		     "\"fromX\":%d,\"fromY\":%d,\"x\":%d,\"y\":%d,"
-		     "\"width\":%d,\"height\":%d",
-		     command->image, command->from_x, command->from_y,
-		     command->x, command->y, command->width, command->height);
+		     "\"x\":%d,\"y\":%d,\"width\":%d,\"height\":%d,"
+		     "\"imageWidth\":%d,\"imageHeight\":%d,\"smooth\":%s,"
+		     "\"matrix\":[%.4f,%.4f,%.4f,%.4f,%.4f,%.4f]",
+		     command->image, command->x, command->y,
+		     command->width, command->height,
+		     command->original_width, command->original_height,
+		     command->smooth ? "true" : "false",
+		     command->matrix[0], command->matrix[1],
+		     command->matrix[2], command->matrix[3],
+		     command->matrix[4], command->matrix[5]);
       break;
 
     case HOST_OP_GLYPHS:

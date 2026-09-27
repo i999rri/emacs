@@ -1015,11 +1015,10 @@ host_draw_image_glyph_string (struct glyph_string *s)
   if (s->slice.y == 0)
     y += s->img->vmargin;
 
-  /* Clipped by the clip the caller set for the string, as everything
-     said is: what falls outside the row is the host's to leave out.  */
-  host_record_image (s->f, host_image_id (s->img->pixmap, s->img->mask),
-		     s->slice.x, s->slice.y, x, y,
-		     s->slice.width, s->slice.height);
+  /* The box is this row's part of the image, and the clip the caller
+     set for the string holds as well: what falls outside either is the
+     host's to leave out.  */
+  host_record_image (s->f, s, x, y, s->slice.width, s->slice.height);
 }
 
 /* Draw S, which is a stretch of blank as wide as it was given room

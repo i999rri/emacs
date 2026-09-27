@@ -3047,7 +3047,7 @@ image_set_transform (struct frame *f, struct image *img)
 {
   bool flip;
 
-#if defined HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
   matrix3x3 identity = {
     { 1, 0, 0 },
     { 0, 1, 0 },
@@ -3108,7 +3108,7 @@ image_set_transform (struct frame *f, struct image *img)
   flip = !NILP (image_spec_value (img->spec, QCflip, NULL));
 
 # if defined USE_CAIRO || defined HAVE_XRENDER || defined HAVE_NS || defined HAVE_HAIKU \
-  || defined HAVE_ANDROID || defined HAVE_NTGUI
+  || defined HAVE_ANDROID || defined HAVE_NTGUI || defined HAVE_HOST
   /* We want scale up operations to use a nearest neighbor filter to
      show real pixels instead of munging them, but scale down
      operations to use a blended filter, to avoid aliasing and the like.  */
@@ -3120,7 +3120,7 @@ image_set_transform (struct frame *f, struct image *img)
     smoothing = !NILP (s);
 # endif
 
-#ifdef HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
   img->use_bilinear_filtering = smoothing;
 #endif
 
@@ -3137,7 +3137,8 @@ image_set_transform (struct frame *f, struct image *img)
 		  : img->width / (double) width),
 	[1][1] = (!IEEE_FLOATING_POINT && height == 0 ? DBL_MAX
 		  : img->height / (double) height),
-# elif defined HAVE_NTGUI || defined HAVE_NS || defined HAVE_HAIKU
+# elif defined HAVE_NTGUI || defined HAVE_NS || defined HAVE_HAIKU \
+  || defined HAVE_HOST
 	[0][0] = (!IEEE_FLOATING_POINT && img->width == 0 ? DBL_MAX
 		  : width / (double) img->width),
 	[1][1] = (!IEEE_FLOATING_POINT && img->height == 0 ? DBL_MAX
@@ -3155,7 +3156,7 @@ image_set_transform (struct frame *f, struct image *img)
 
   /* Haiku needs this, since the transformation is done on the basis
      of the view, and not the image.  */
-#if defined HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
   int extra_tx, extra_ty;
 
   extra_tx = 0;
@@ -3169,7 +3170,7 @@ image_set_transform (struct frame *f, struct image *img)
 #ifndef HAVE_ANDROID
 # if (defined USE_CAIRO || defined HAVE_XRENDER		\
       || defined HAVE_NTGUI || defined HAVE_NS		\
-      || defined HAVE_HAIKU)
+      || defined HAVE_HAIKU || defined HAVE_HOST)
       int cos_r, sin_r;
       if (rotation == 0)
 	{
@@ -3182,7 +3183,7 @@ image_set_transform (struct frame *f, struct image *img)
 	  sin_r = 0;
 	  rotate_flag = 1;
 
-#ifdef HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
 	  extra_tx = width;
 	  extra_ty = 0;
 #endif
@@ -3195,7 +3196,7 @@ image_set_transform (struct frame *f, struct image *img)
 	  sin_r = 1;
 	  rotate_flag = 1;
 
-#if defined HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
 	  if (!flip)
 	    extra_ty = height;
 	  extra_tx = 0;
@@ -3207,7 +3208,7 @@ image_set_transform (struct frame *f, struct image *img)
 	  sin_r = 0;
 	  rotate_flag = 1;
 
-#ifdef HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
 	  if (!flip)
 	    extra_tx = width;
 	  extra_ty = height;
@@ -3221,7 +3222,7 @@ image_set_transform (struct frame *f, struct image *img)
 	  sin_r = -1;
 	  rotate_flag = 1;
 
-#ifdef HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
 	  extra_tx = width;
 
 	  if (flip)
@@ -3423,7 +3424,7 @@ image_set_transform (struct frame *f, struct image *img)
   img->xform.eM22 = matrix[1][1];
   img->xform.eDx  = matrix[2][0];
   img->xform.eDy  = matrix[2][1];
-# elif defined HAVE_HAIKU
+# elif defined HAVE_HAIKU || defined HAVE_HOST
   /* Store the transform in the struct image for later.  */
   memcpy (&img->transform, &matrix, sizeof matrix);
 
@@ -12925,7 +12926,7 @@ The list of capabilities can include one or more of the following:
     {
 #ifdef HAVE_NATIVE_TRANSFORMS
 # if defined HAVE_IMAGEMAGICK || defined (USE_CAIRO) || defined (HAVE_NS) \
-  || defined (HAVE_HAIKU) || defined HAVE_ANDROID
+  || defined (HAVE_HAIKU) || defined HAVE_ANDROID || defined HAVE_HOST
       return list2 (Qscale, Qrotate90);
 # elif defined (HAVE_X_WINDOWS) && defined (HAVE_XRENDER)
       if (FRAME_DISPLAY_INFO (f)->xrender_supported_p)

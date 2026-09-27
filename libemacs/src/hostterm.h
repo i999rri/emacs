@@ -246,11 +246,20 @@ struct host_command
   unsigned short *ids;
   int *xs;
 
-  /* An image: which one, as hostfns.c numbers it, and where in the
-     image the part being drawn begins.  The box is where that part
-     goes, so a row that shows a slice of a tall image says the same
-     image with another corner of it.  */
-  int image, from_x, from_y;
+  /* An image: which one, as hostfns.c numbers it, and how big it is
+     before anything is done to it.  The box is what it is drawn
+     within, so a row that shows a slice of a tall image says the same
+     image within another box.
+
+     MATRIX takes the image from its own corner to where this slice of
+     it goes, scaled and turned as the image asked to be: whoever draws
+     it applies this and draws the image at its own size, and what falls
+     outside the box is not drawn.  SMOOTH is whether the pixels are to
+     be blended, which is what makes an image drawn smaller than it is
+     look like the image rather than like a comb.  */
+  int image, original_width, original_height;
+  double matrix[6];
+  bool smooth;
 };
 
 struct host_record
@@ -270,8 +279,8 @@ extern void host_record_copy (struct frame *, int, int, int, int, int);
 extern void host_record_clip (struct frame *, bool, int, int, int, int);
 extern void host_record_glyphs (struct glyph_string *, int, int, int, int,
 				int const *);
-extern void host_record_image (struct frame *, int, int, int, int, int,
-			       int, int);
+extern void host_record_image (struct frame *, struct glyph_string *,
+			       int, int, int, int);
 extern void host_send_commands (struct frame *);
 extern void host_forget_commands (struct frame *);
 extern void syms_of_hostrecord (void);

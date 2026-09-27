@@ -3203,7 +3203,7 @@ struct redisplay_interface
 
 # if (defined USE_CAIRO || defined HAVE_XRENDER				\
       || defined HAVE_NS || defined HAVE_NTGUI || defined HAVE_HAIKU	\
-      || defined HAVE_ANDROID)
+      || defined HAVE_ANDROID || defined HAVE_HOST)
 #  define HAVE_NATIVE_TRANSFORMS
 # endif
 
@@ -3250,7 +3250,7 @@ struct image
   XFORM xform;
   bool smoothing;
 #endif
-#ifdef HAVE_HAIKU
+#if defined HAVE_HAIKU || defined HAVE_HOST
   /* The affine transformation to apply to this image.  */
   double transform[3][3];
 
