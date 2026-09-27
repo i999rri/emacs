@@ -6456,7 +6456,9 @@ CFLAGS="$OLDCFLAGS"
 LIBS="$OLDLIBS"])
 if test "${emacs_cv_links_glib}" = "yes"; then
   AC_DEFINE([HAVE_GLIB], [1], [Define to 1 if GLib is linked in.])
-  if test "$HAVE_NS" = no ; then
+  # Nor for the host, which waits as a system without GLib does: GLib is
+  # there only because an image library calls it.
+  if test "$HAVE_NS" = no && test "$window_system" != "host" ; then
     XGSELOBJ=xgselect.o
   fi
 fi

@@ -5794,8 +5794,12 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 #else
 
 	  /* Non-macOS HAVE_GLIB builds call thread_select in
-	     xgselect.c.  */
-#if defined HAVE_GLIB && !defined HAVE_NS
+	     xgselect.c.  The host is not one of them: GLib comes in with
+	     an image library it calls and nothing else, so it has no
+	     main loop of its own here to be waited on, and cutting the
+	     wait short to GLib's timeout left Emacs never idle and its
+	     idle timers never run.  */
+#if defined HAVE_GLIB && !defined HAVE_NS && !defined HAVE_HOST
 	  nfds = xg_select (max_desc + 1,
 			    &Available, (check_write ? &Writeok : 0),
 			    NULL, &timeout, NULL);
