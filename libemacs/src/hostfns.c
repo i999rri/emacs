@@ -151,12 +151,19 @@ host_image_id (struct host_pixmap *pixels, struct host_pixmap *mask)
   image->next = host_images;
   host_images = image;
 
+  /* Sent at once rather than waited to be asked for.  The host draws
+     what it is told to when it is told to, and a screen it drew
+     without the pixels is a screen with a hole in it until something
+     else makes Emacs draw that part again.  Emacs and the host begin
+     and end together, so what has been said once has been said.  */
+  host_image_wanted (image->id);
+
   return image->id;
 }
 
-/* Send the host the pixels of the image it knows by ID, which it asks
-   for when it has something to draw from an image and has not its
-   pixels.
+/* Send the host the pixels of the image it knows by ID: once as the
+   image is first said, and again whenever the host asks, which it does
+   when it has something to draw from an image and has not its pixels.
 
    Sent as the host draws them and not as Emacs holds them: four bytes
    to a pixel, blue first as Windows counts them, and the alpha the mask
