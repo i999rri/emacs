@@ -2636,6 +2636,12 @@ AS_IF([test "$with_host" = "yes"],[
   window_system=host
   no_x=yes
   with_x=no
+  dnl Nor with w32, which is found rather than asked for on Windows and
+  dnl would otherwise take the window system back from this one further
+  dnl down.  Asked for outright, it is the same mistake as the others.
+  AS_IF([test "${with_w32}" = "yes"],
+    [AC_MSG_ERROR([--with-host cannot be used with another window system])])
+  with_w32=no
   dnl The fonts are the sfnt engine's, which reads font files itself
   dnl and only measures here (sfntfont-host.c).
   HOST_OBJ="hostterm.o hostdraw.o hostrecord.o hostfont.o hostfns.o hostinput.o sfnt.o sfntfont.o sfntfont-host.o"
@@ -3054,7 +3060,10 @@ if test "${with_w32}" != no; then
   esac
 fi
 
-if test "${opsys}" = "mingw32"; then
+dnl Not where another window system was asked for: on Windows the w32
+dnl one is found rather than asked for, and this is where it is found
+dnl however `--with-w32' was answered above.
+if test "${opsys}" = "mingw32" && test "${with_w32}" != "no"; then
   AC_CACHE_CHECK([whether Windows API headers are recent enough], [emacs_cv_w32api],
   [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
      #include <windows.h>
@@ -3101,8 +3110,7 @@ if test "${HAVE_W32}" = "yes"; then
     # the rc file), not a linker script.
     W32_RES_LINK="-Wl,emacs.res"
   else
-    W32_OBJ="$W32_OBJ w32.o w32console.o w32heap.o w32image.o w32inevt.o w32proc.o"
-    W32_OBJ="$W32_OBJ w32start.o w32host.o"
+    W32_OBJ="$W32_OBJ w32image.o"
     dnl FIXME: This should probably be supported for Cygwin/w32 as
     dnl well, but the Cygwin build needs to link against -lgdiplus
     if test "${with_native_image_api}" = yes; then
@@ -3110,18 +3118,28 @@ if test "${HAVE_W32}" = "yes"; then
 	[Define to use native OS APIs for images.])
       NATIVE_IMAGE_API="yes (w32)"
     fi
-    W32_LIBS="$W32_LIBS -lwinmm -lgdi32 -lcomdlg32"
-    W32_LIBS="$W32_LIBS -lmpr -lwinspool -lole32 -lcomctl32"
     W32_RES_LINK="\$(EMACSRES)"
     CLIENTRES="emacsclient.res"
     CLIENTW="emacsclientw\$(EXEEXT)"
-    NTDIR=nt
-    CM_OBJ=
-    LIBS_ECLIENT="-lcomctl32"
-    LIB_WSOCK32="-lwsock32"
-    NTLIB="ntlib.$ac_objext"
-    XARGS_LIMIT="-s 10000"
   fi
+fi
+
+dnl Windows itself, which is under whatever draws the frames: the C
+dnl runtime Emacs replaces here (w32.c has sys_open, lstat and the
+dnl rest), the sockets, and what nt/ builds.  None of it is the w32
+dnl window system, and a build that draws its frames another way needs
+dnl it all the same.
+if test "${opsys}" = "mingw32"; then
+  W32_OBJ="$W32_OBJ w32.o w32console.o w32heap.o w32inevt.o w32proc.o"
+  W32_OBJ="$W32_OBJ w32start.o w32host.o"
+  W32_LIBS="$W32_LIBS -lwinmm -lgdi32 -lcomdlg32"
+  W32_LIBS="$W32_LIBS -lmpr -lwinspool -lole32 -lcomctl32"
+  NTDIR=nt
+  CM_OBJ=
+  LIBS_ECLIENT="-lcomctl32"
+  LIB_WSOCK32="-lwsock32"
+  NTLIB="ntlib.$ac_objext"
+  XARGS_LIMIT="-s 10000"
 fi
 
 if test "${HAVE_W32}" = "no" && test "${opsys}" = "cygwin"; then

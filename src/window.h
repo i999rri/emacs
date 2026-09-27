@@ -897,7 +897,7 @@ wset_next_buffers (struct window *w, Lisp_Object val)
 
 #if (defined (HAVE_WINDOW_SYSTEM)					\
      && ((defined (USE_TOOLKIT_SCROLL_BARS))	\
-	 || defined (HAVE_NTGUI)))
+	 || defined (HAVE_NTGUI) || defined (HAVE_HOST)))
 # define USE_HORIZONTAL_SCROLL_BARS true
 #else
 # define USE_HORIZONTAL_SCROLL_BARS false

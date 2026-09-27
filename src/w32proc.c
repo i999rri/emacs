@@ -4689,6 +4689,25 @@ w32_compare_strings (const char *s1, const char *s2, char *locname,
 void
 syms_of_ntproc (void)
 {
+  /* How file names are passed to Windows, which is Windows and not the
+     w32 window system: w32.c and dynlib.c read it, and neither of them
+     draws anything.  It was declared in w32term.c, where a build that
+     draws its frames another way does not have it.  */
+  DEFVAR_BOOL ("w32-unicode-filenames",
+	       w32_unicode_filenames,
+     doc: /* Non-nil means use Unicode APIs when passing file names to the OS.
+A value of nil means file names passed to the OS APIs and returned
+from those APIs are encoded/decoded using the ANSI codepage
+specified by `file-name-coding-system'.
+
+This variable is set to non-nil by default when Emacs runs on Windows
+systems of the NT family, including W2K, XP, Vista, Windows 7 and
+Windows 8.  It is set to nil on Windows 9X.  */);
+  if (os_subtype == OS_SUBTYPE_9X)
+    w32_unicode_filenames = 0;
+  else
+    w32_unicode_filenames = 1;
+
   DEFSYM (Qhigh, "high");
   DEFSYM (Qlow, "low");
   DEFSYM (Qcygwin, "cygwin");

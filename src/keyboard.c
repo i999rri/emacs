@@ -12134,7 +12134,10 @@ Only 'input_event' slots KIND and ARG are set.  */)
      : EQ (XCAR (event), Qfile_notify) ? FILE_NOTIFY_EVENT
 #endif /* USE_FILE_NOTIFY */
      : EQ (XCAR (event), Qconfig_changed_event) ? CONFIG_CHANGED_EVENT
-#if defined (WINDOWSNT)
+/* As the event itself is: it is the w32 window system that sends one,
+   and Windows is where that window system is and not the whole of what
+   is there.  */
+#ifdef HAVE_NTGUI
      : EQ (XCAR (event), Qlanguage_change) ? LANGUAGE_CHANGE_EVENT
 #endif
      : EQ (XCAR (event), Qfocus_in) ? FOCUS_IN_EVENT

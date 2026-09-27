@@ -111,7 +111,12 @@ To add a new module function, proceed as follows:
 
 #ifdef WINDOWSNT
 #include <windows.h>
+/* And the w32 window system's own header where that is the window
+   system: nothing here asks anything of it, and its types are another
+   window system's own where the frames are drawn by something else.  */
+#ifdef HAVE_NTGUI
 #include "w32term.h"
+#endif
 #endif
 
 /* Function prototype for the module init function.  */

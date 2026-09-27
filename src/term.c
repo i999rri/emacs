@@ -58,8 +58,16 @@ static int been_here = -1;
 #include "menu.h"
 
 /* The name of the default console device.  */
-#ifdef WINDOWSNT
+#if defined WINDOWSNT && defined HAVE_NTGUI
 #include "w32term.h"
+#elif defined WINDOWSNT
+/* All that is wanted of that header is this, and the rest of it is the
+   w32 window system's: on Windows the console is there whatever draws
+   the frames, and its types are another window system's own where
+   something else does.  */
+extern void initialize_w32_display (struct terminal *, int *, int *);
+extern void w32con_hide_cursor (void);
+extern void w32con_show_cursor (void);
 #endif
 
 #ifndef HAVE_ANDROID

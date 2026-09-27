@@ -8489,21 +8489,6 @@ the cursor have no effect.  */);
 	       doc: /* SKIP: real doc in xterm.c.  */);
   Vx_toolkit_scroll_bars = Qt;
 
-  DEFVAR_BOOL ("w32-unicode-filenames",
-	       w32_unicode_filenames,
-     doc: /* Non-nil means use Unicode APIs when passing file names to the OS.
-A value of nil means file names passed to the OS APIs and returned
-from those APIs are encoded/decoded using the ANSI codepage
-specified by `file-name-coding-system'.
-
-This variable is set to non-nil by default when Emacs runs on Windows
-systems of the NT family, including W2K, XP, Vista, Windows 7 and
-Windows 8.  It is set to nil on Windows 9X.  */);
-  if (os_subtype == OS_SUBTYPE_9X)
-    w32_unicode_filenames = 0;
-  else
-    w32_unicode_filenames = 1;
-
   DEFVAR_BOOL ("w32-use-native-image-API",
 	       w32_use_native_image_api,
      doc: /* Non-nil means use the native MS-Windows image API to display images.

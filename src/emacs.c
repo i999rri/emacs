@@ -60,6 +60,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "w32common.h"
 #endif
 
+#if defined WINDOWSNT && !defined HAVE_NTGUI
+/* Windows itself, and not the w32 window system, although w32term.h is
+   where they are declared: the critical sections, the thread Emacs runs
+   on and what watches the file system are there whatever draws the
+   frames.  */
+extern void init_crit (void);
+extern void w32_init_main_thread (void);
+extern void globals_of_w32notify (void);
+#endif
+
 #if defined CYGWIN
 #include "cygw32.h"
 #endif
