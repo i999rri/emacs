@@ -50,9 +50,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#ifdef WINDOWSNT
-#include <io.h>		/* for _write, which is not Emacs's */
-#endif
 
 #include "lisp.h"
 #include "blockinput.h"
@@ -64,6 +61,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "systime.h"
 #include "systhread.h"	/* for the lock on the wakeup below */
+#ifdef WINDOWSNT
+/* The message queue Emacs on Windows is woken through.  */
+#include "w32base.h"
+#endif
 #include "hostlib.h"
 #include "hostterm.h"
 
@@ -71,22 +72,29 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    is indexed from there (keyboard.c's FUNCTION_KEY_OFFSET).  */
 #define HOST_FUNCTION_KEY_OFFSET 0xff00
 
-/* The pipe the host's thread wakes Emacs with.  */
+/* How the host's thread wakes the one Emacs waits on.
+
+   Everywhere but Windows that is a pipe of our own, waited on beside
+   the keyboard.  On Windows it is the message queue every Emacs there
+   already has (w32base.c), because a pipe cannot do it: sys_select
+   waits on handles, and it passes over a descriptor that is not a
+   child's or a socket's, so nothing would wake (w32proc.c).  Emacs
+   does not build its own self-pipe for child signals there either
+   (process.c).  */
+
+#ifndef WINDOWSNT
+
 static int wakeup_pipe[2] = { -1, -1 };
 
 /* Whether a byte is in that pipe that Emacs has not read yet, and the
-   lock the two threads keep it under.
-
-   One byte is enough: it says there is something to look at, and
-   looking takes everything there is.  Keeping the count is what lets
-   the byte be read without waiting, since a read asks for exactly what
-   is known to be there.  The read end cannot be made not to wait:
-   fcntl takes O_NONBLOCK for a socket and for the writing end of a
-   pipe and for nothing else on Windows (w32.c), which is why Emacs's
-   own self-pipe for child signals is not built there at all
-   (process.c).  */
+   lock the two threads keep it under.  One byte is enough: it says
+   there is something to look at, and looking takes everything there
+   is.  Keeping the count is what lets the byte be read without
+   waiting, a read asking for exactly what is known to be there.  */
 static sys_mutex_t wakeup_lock;
 static int wakeups_sent;
+
+#endif /* not WINDOWSNT */
 
 /* The wheel's movement not yet made into whole lines, as a touchpad
    moves it a fraction of a line at a time.  */
@@ -426,36 +434,34 @@ host_input_message_p (const char *message)
 /* Wake Emacs to read what was queued.  Called on the host's thread,
    and only writes to the pipe.  */
 
-/* Put a byte in the pipe, without Emacs.
-
-   Emacs replaces write on Windows with one of its own that keeps its
-   book of descriptors and allocates with its allocator (w32.c), and
-   this runs on a thread of the host's, where neither may be touched:
-   doing so corrupts the heap.  The C runtime's own write is all a pipe
-   wants.  Elsewhere write is the system's already.  */
-
-static int
-host_input_write (int fd, const char *byte)
-{
-#ifdef WINDOWSNT
-  return _write (fd, byte, 1);
-#else
-  return write (fd, byte, 1);
-#endif
-}
+/* Nothing of Emacs's is touched here: this runs on a thread of the
+   host's, and Emacs's allocator and its book of descriptors are the
+   other thread's alone -- touching them corrupts the heap.  What both
+   ways below use is the system's.  */
 
 static void
 host_input_wakeup (void)
 {
+#ifdef WINDOWSNT
+  W32Msg msg;
+
+  /* The message itself says nothing; it is posting one that signals
+     what Emacs waits on for input.  host_read_socket takes them all
+     again, which is what lets that signal fall.  */
+  memset (&msg, 0, sizeof msg);
+  msg.msg.message = WM_EMACS_INPUT_READY;
+  post_msg (&msg);
+#else
   char byte = 0;
 
   sys_mutex_lock (&wakeup_lock);
   /* Written before it is counted, so that what is counted is always
      there to be read.  A wakeup Emacs has not taken yet will bring it
      to this message as well.  */
-  if (wakeups_sent == 0 && host_input_write (wakeup_pipe[1], &byte) == 1)
+  if (wakeups_sent == 0 && write (wakeup_pipe[1], &byte, 1) == 1)
     wakeups_sent = 1;
   sys_mutex_unlock (&wakeup_lock);
+#endif
 }
 
 /* A message, read.  */
@@ -878,20 +884,35 @@ host_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 {
   int count = 0, help = 0;
   char *message;
-  char drain[1];
 
-  /* Read the wakeup first: one that comes after this is for a message
-     that comes after it too.  Only as much as was counted, so that
-     this never waits for a byte that is not coming.  */
-  sys_mutex_lock (&wakeup_lock);
-  int waiting = wakeups_sent;
-  wakeups_sent = 0;
-  sys_mutex_unlock (&wakeup_lock);
+  /* Take the wakeups first: one that comes after this is for a message
+     that comes after it too.  */
+#ifdef WINDOWSNT
+  {
+    W32Msg msg;
 
-  if (waiting && read (wakeup_pipe[0], drain, waiting) < 0)
-    /* Nothing to do about it: the message is read below all the
-       same, and the next wakeup will find the pipe as it is.  */
-    ;
+    /* All of them, which is what lowers the signal Emacs waits on:
+       get_next_msg does that when the queue runs out.  */
+    while (get_next_msg (&msg, FALSE))
+      continue;
+  }
+#else
+  {
+    char drain[1];
+
+    /* Only as much as was counted, so that this never waits for a byte
+       that is not coming.  */
+    sys_mutex_lock (&wakeup_lock);
+    int waiting = wakeups_sent;
+    wakeups_sent = 0;
+    sys_mutex_unlock (&wakeup_lock);
+
+    if (waiting && read (wakeup_pipe[0], drain, waiting) < 0)
+      /* Nothing to do about it: the message is read below all the
+	 same, and the next wakeup will find the pipe as it is.  */
+      ;
+  }
+#endif
 
   block_input ();
 
@@ -1058,6 +1079,13 @@ host_frame_rehighlight (struct frame *ignored)
 void
 host_input_init (void)
 {
+#ifdef WINDOWSNT
+  /* Emacs waits on what the message queue signals only where the
+     descriptor it calls the keyboard is one of the descriptors it is
+     waiting on, that being how it waits for a key on Windows
+     (sys_select in w32proc.c hands descriptor 0 to that signal).  */
+  add_keyboard_wait_descriptor (0);
+#else
   if (wakeup_pipe[0] >= 0)
     return;
 
@@ -1069,6 +1097,7 @@ host_input_init (void)
   fcntl (wakeup_pipe[1], F_SETFL, O_NONBLOCK);
   sys_mutex_init (&wakeup_lock);
   add_keyboard_wait_descriptor (wakeup_pipe[0]);
+#endif
 
   host_claim_input (host_input_message_p, host_input_wakeup);
 }

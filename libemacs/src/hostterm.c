@@ -44,6 +44,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "termchar.h"
 #include "hostterm.h"
 #include "hostlib.h"
+#ifdef WINDOWSNT
+#include "w32base.h"	/* for init_crit, which every terminal there calls */
+#endif
 
 /* The one display there is, once `x-open-connection' has opened it.
    frame.c and keyboard.c look at it by this name, whatever the window
@@ -1892,6 +1895,14 @@ host_term_init (void)
 
   if (x_display_list)
     return x_display_list;
+
+#ifdef WINDOWSNT
+  /* Windows's own critical section and message queue, which the host's
+     thread wakes this one through (hostinput.c).  Every terminal on
+     Windows sets them up for itself -- the w32 window system's in
+     w32term.c, the console's in w32console.c -- and this is the third.  */
+  init_crit ();
+#endif
 
   block_input ();
 
