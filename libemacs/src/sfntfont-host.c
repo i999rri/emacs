@@ -268,7 +268,10 @@ default_font_directories (void)
     {
 #ifdef WINDOWSNT
       "C:/Windows/Fonts",
-      "~/AppData/Local/Microsoft/Windows/Fonts",
+      /* A font one person installed for themselves is under
+	 LOCALAPPDATA, added below: not "~/AppData/Local/...", since
+	 `~' on Windows is where Emacs keeps its files (HOME, or
+	 APPDATA) and not the profile the fonts are under.  */
 #elif defined DARWIN_OS
       "/System/Library/Fonts",
       "/Library/Fonts",
@@ -287,6 +290,31 @@ default_font_directories (void)
 
   for (int i = ARRAYELTS (directories) - 1; i >= 0; i--)
     list = Fcons (build_string (directories[i]), list);
+
+#ifdef WINDOWSNT
+  {
+    /* Where Windows puts a font one person installed for themselves.
+       USERPROFILE as well, for a process started without the other.  */
+    const char *local = getenv ("LOCALAPPDATA");
+    Lisp_Object under = Qnil;
+
+    if (local && *local)
+      under = build_string (local);
+    else
+      {
+	const char *profile = getenv ("USERPROFILE");
+
+	if (profile && *profile)
+	  under = concat2 (build_string (profile),
+			   build_string ("/AppData/Local"));
+      }
+
+    if (!NILP (under))
+      list = nconc2 (list,
+		     list1 (concat2 (under,
+				     build_string ("/Microsoft/Windows/Fonts"))));
+  }
+#endif
 
   if (xdg && *xdg)
     {

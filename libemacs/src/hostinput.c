@@ -60,6 +60,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "termchar.h"
 #include "window.h"
 #include "systime.h"
+#include "systhread.h"	/* for the lock on the wakeup below */
 #include "hostlib.h"
 #include "hostterm.h"
 
@@ -69,6 +70,20 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* The pipe the host's thread wakes Emacs with.  */
 static int wakeup_pipe[2] = { -1, -1 };
+
+/* Whether a byte is in that pipe that Emacs has not read yet, and the
+   lock the two threads keep it under.
+
+   One byte is enough: it says there is something to look at, and
+   looking takes everything there is.  Keeping the count is what lets
+   the byte be read without waiting, since a read asks for exactly what
+   is known to be there.  The read end cannot be made not to wait:
+   fcntl takes O_NONBLOCK for a socket and for the writing end of a
+   pipe and for nothing else on Windows (w32.c), which is why Emacs's
+   own self-pipe for child signals is not built there at all
+   (process.c).  */
+static sys_mutex_t wakeup_lock;
+static int wakeups_sent;
 
 /* The wheel's movement not yet made into whole lines, as a touchpad
    moves it a fraction of a line at a time.  */
@@ -413,10 +428,13 @@ host_input_wakeup (void)
 {
   char byte = 0;
 
-  if (write (wakeup_pipe[1], &byte, 1) < 0)
-    /* The pipe is full, so Emacs has a wakeup it has not read yet
-       and will read this with it.  */
-    return;
+  sys_mutex_lock (&wakeup_lock);
+  /* Written before it is counted, so that what is counted is always
+     there to be read.  A wakeup Emacs has not taken yet will bring it
+     to this message as well.  */
+  if (wakeups_sent == 0 && write (wakeup_pipe[1], &byte, 1) == 1)
+    wakeups_sent = 1;
+  sys_mutex_unlock (&wakeup_lock);
 }
 
 /* A message, read.  */
@@ -839,12 +857,20 @@ host_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 {
   int count = 0, help = 0;
   char *message;
-  char drain[64];
+  char drain[1];
 
-  /* Read the wakeups first: one that comes after this is for a message
-     that comes after it too.  */
-  while (read (wakeup_pipe[0], drain, sizeof drain) > 0)
-    continue;
+  /* Read the wakeup first: one that comes after this is for a message
+     that comes after it too.  Only as much as was counted, so that
+     this never waits for a byte that is not coming.  */
+  sys_mutex_lock (&wakeup_lock);
+  int waiting = wakeups_sent;
+  wakeups_sent = 0;
+  sys_mutex_unlock (&wakeup_lock);
+
+  if (waiting && read (wakeup_pipe[0], drain, waiting) < 0)
+    /* Nothing to do about it: the message is read below all the
+       same, and the next wakeup will find the pipe as it is.  */
+    ;
 
   block_input ();
 
@@ -1016,8 +1042,11 @@ host_input_init (void)
 
   if (emacs_pipe (wakeup_pipe) < 0)
     fatal ("Could not make a pipe for the host's input");
-  fcntl (wakeup_pipe[0], F_SETFL, O_NONBLOCK);
+  /* Only the writing end, which is the end that can be made not to
+     wait everywhere; the reading end is kept from waiting by reading
+     no more than wakeups_sent says is there.  */
   fcntl (wakeup_pipe[1], F_SETFL, O_NONBLOCK);
+  sys_mutex_init (&wakeup_lock);
   add_keyboard_wait_descriptor (wakeup_pipe[0]);
 
   host_claim_input (host_input_message_p, host_input_wakeup);
