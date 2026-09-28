@@ -396,7 +396,9 @@ the operating system.")
       x-colors
     (or frame (setq frame (selected-frame)))
     (let (defined-colors)
-      (dolist (this-color (if (eq system-type 'windows-nt)
+      ;; Not the system: `w32-color-map' is the w32 window system's, and
+      ;; another may be drawing this frame on Windows.
+      (dolist (this-color (if (eq (framep frame) 'w32)
 			      (or (mapcar 'car w32-color-map) x-colors)
 			    x-colors))
 	(and (color-supported-p this-color frame t)
