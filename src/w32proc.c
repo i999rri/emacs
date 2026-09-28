@@ -2075,7 +2075,11 @@ create_child (char *exe, char *cmdline, char *env, int is_gui_app,
   memset (&start, 0, sizeof (start));
   start.cb = sizeof (start);
 
-#ifdef HAVE_NTGUI
+/* Not HAVE_NTGUI: what decides this is whether Emacs is a console
+   application, and it is not one wherever a window system draws its
+   frames.  A child of a console Emacs shares its console and is left
+   the standard handles it holds.  */
+#ifdef HAVE_WINDOW_SYSTEM
   if (NILP (Vw32_start_process_show_window) && !is_gui_app)
     start.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
   else
@@ -2094,7 +2098,7 @@ create_child (char *exe, char *cmdline, char *env, int is_gui_app,
       start.hStdOutput = GetStdHandle (STD_OUTPUT_HANDLE);
       start.hStdError = GetStdHandle (STD_ERROR_HANDLE);
     }
-#endif /* HAVE_NTGUI */
+#endif /* HAVE_WINDOW_SYSTEM */
 
 #if 0
   /* Explicitly specify no security */
