@@ -22,7 +22,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
      w32dll-smoke --batch --eval "(message \"hi\")"
 
-   It is also a host in the sense of w32host.h, the least one that can
+   It is also a host in the sense of host.h, the least one that can
    be: it prints what Emacs posts and sends the same text back as an
    event, so that both directions can be seen from a command line.
 
@@ -39,7 +39,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <stdlib.h>
 #include <string.h>
 
-#include "w32host.h"
+#include "host.h"
 
 typedef int (*w32_emacs_init_fn) (int, char **);
 
@@ -65,72 +65,11 @@ host_on_event (host_event_fn fn, void *data)
   event_data = data;
 }
 
-/* No window: a host of this size has none, and Emacs makes its own as
-   it does when it runs on its own.  */
-/* The window frames go in, when asked for with --host-window.  It is
-   the plainest one there is, so that what Emacs does inside a window
-   of a host's can be seen without a host to speak of.  */
-static HWND host_hwnd;
-
-static void *
-host_window (void)
-{
-  return host_hwnd;
-}
-
-static LRESULT CALLBACK
-host_wndproc (HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
-{
-  switch (message)
-    {
-    case WM_SIZE:
-      {
-	/* Keep the frame filling the window, as a host does.  */
-	HWND child = GetWindow (hwnd, GW_CHILD);
-
-	if (child)
-	  SetWindowPos (child, HWND_TOP, 0, 0, LOWORD (lparam),
-			HIWORD (lparam),
-			SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_ASYNCWINDOWPOS);
-	return 0;
-      }
-
-    case WM_DESTROY:
-      PostQuitMessage (0);
-      return 0;
-    }
-
-  return DefWindowProc (hwnd, message, wparam, lparam);
-}
-
-static void
-make_host_window (void)
-{
-  WNDCLASS class = { 0 };
-
-  class.lpfnWndProc = host_wndproc;
-  class.hInstance = GetModuleHandle (NULL);
-  class.hCursor = LoadCursor (NULL, IDC_ARROW);
-  class.hbrBackground = (HBRUSH) (COLOR_APPWORKSPACE + 1);
-  class.lpszClassName = "w32dll-smoke-host";
-  RegisterClass (&class);
-
-  /* WS_CLIPCHILDREN, or this window's background is painted over the
-     frame, which only paints again when something invalidates it.  */
-  host_hwnd = CreateWindow ("w32dll-smoke-host", "w32dll-smoke host",
-			    WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-			    CW_USEDEFAULT, CW_USEDEFAULT,
-			    1000, 700, NULL, NULL, GetModuleHandle (NULL),
-			    NULL);
-  ShowWindow (host_hwnd, SW_SHOW);
-}
-
 static const struct host_api host_api =
   {
     HOST_API_VERSION,
     host_post,
-    host_on_event,
-    host_window
+    host_on_event
   };
 
 __declspec (dllexport) const struct host_api *host_get_api (unsigned);
@@ -182,16 +121,6 @@ main (int argc, char **argv)
       return 1;
     }
 
-  /* --host-window, if it is the first argument, says to be a host with
-     a window and keep the rest of the command line for Emacs.  */
-  if (1 < argc && strcmp (argv[1], "--host-window") == 0)
-    {
-      make_host_window ();
-      argv[1] = argv[0];
-      argv++;
-      argc--;
-    }
-
   /* Emacs relies on the 8 MB stack emacs.exe is linked with.  */
   struct emacs_run run = { init, argc, argv, 0 };
   HANDLE thread = CreateThread (NULL, 8 << 20, run_emacs, &run,
@@ -201,21 +130,6 @@ main (int argc, char **argv)
       fprintf (stderr, "cannot create the Emacs thread: error %lu\n",
 	       GetLastError ());
       return 1;
-    }
-
-  /* With a window there is a message loop to run, until Emacs is done
-     or the window is closed.  */
-  if (host_hwnd)
-    {
-      MSG message;
-
-      while (WaitForSingleObject (thread, 0) == WAIT_TIMEOUT)
-	{
-	  if (GetMessage (&message, NULL, 0, 0) <= 0)
-	    break;
-	  TranslateMessage (&message);
-	  DispatchMessage (&message);
-	}
     }
 
   WaitForSingleObject (thread, INFINITE);

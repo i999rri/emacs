@@ -32,7 +32,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifndef HOST_H
 #define HOST_H
 
-#define HOST_API_VERSION 3
+#define HOST_API_VERSION 4
 
 /* The name of what the host exports.  */
 #define HOST_GET_API "host_get_api"
@@ -51,12 +51,6 @@ struct host_api
   /* The host to Emacs.  Called once, with the function that takes the
      messages of the host and the data to pass back to it.  */
   void (*on_event) (host_event_fn fn, void *data);
-
-  /* A window of the system's that frames are to be made in, or null to
-     leave Emacs its own.  Only a host on Windows gives one today, for
-     frames that are windows of Emacs's on no screen, which the host
-     draws; the host places and sizes them itself.  May be null.  */
-  void *(*window) (void);
 };
 
 /* What the host exports.  Returns null if it does not speak VERSION.  */
