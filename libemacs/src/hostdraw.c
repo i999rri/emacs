@@ -590,8 +590,10 @@ host_frame_name (struct frame *f, char *name, size_t room)
   Lisp_Object frame;
 
   XSETFRAME (frame, f);
-  snprintf (name, room, "%lx",
-	    (unsigned long) XUFIXNUM (Fsxhash_eq (frame)));
+  /* Not unsigned long, which is 32 bits on Windows and cuts the hash
+     down to a name Lisp never gives anything: `pI' is what this
+     integer is printed with wherever Emacs is built.  */
+  snprintf (name, room, "%"pI"x", XUFIXNUM (Fsxhash_eq (frame)));
 }
 
 /* Give the host the part of F's picture drawn into since it was last
