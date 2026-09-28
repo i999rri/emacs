@@ -50,6 +50,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef WINDOWSNT
+#include <io.h>		/* for _write, which is not Emacs's */
+#endif
 
 #include "lisp.h"
 #include "blockinput.h"
@@ -423,6 +426,24 @@ host_input_message_p (const char *message)
 /* Wake Emacs to read what was queued.  Called on the host's thread,
    and only writes to the pipe.  */
 
+/* Put a byte in the pipe, without Emacs.
+
+   Emacs replaces write on Windows with one of its own that keeps its
+   book of descriptors and allocates with its allocator (w32.c), and
+   this runs on a thread of the host's, where neither may be touched:
+   doing so corrupts the heap.  The C runtime's own write is all a pipe
+   wants.  Elsewhere write is the system's already.  */
+
+static int
+host_input_write (int fd, const char *byte)
+{
+#ifdef WINDOWSNT
+  return _write (fd, byte, 1);
+#else
+  return write (fd, byte, 1);
+#endif
+}
+
 static void
 host_input_wakeup (void)
 {
@@ -432,7 +453,7 @@ host_input_wakeup (void)
   /* Written before it is counted, so that what is counted is always
      there to be read.  A wakeup Emacs has not taken yet will bring it
      to this message as well.  */
-  if (wakeups_sent == 0 && write (wakeup_pipe[1], &byte, 1) == 1)
+  if (wakeups_sent == 0 && host_input_write (wakeup_pipe[1], &byte) == 1)
     wakeups_sent = 1;
   sys_mutex_unlock (&wakeup_lock);
 }
