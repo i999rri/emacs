@@ -62,11 +62,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #if defined WINDOWSNT && !defined HAVE_NTGUI
 /* Windows itself, and not the w32 window system, although w32term.h is
-   where they are declared: the critical sections, the thread Emacs runs
-   on and what watches the file system are there whatever draws the
-   frames.  */
-extern void init_crit (void);
-extern void w32_init_main_thread (void);
+   where upstream declares it: the critical section, the thread Emacs
+   runs on and the system version are there whatever draws the frames.  */
+#include "w32base.h"
 extern void globals_of_w32notify (void);
 #endif
 
@@ -2436,7 +2434,11 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_w32cygwinx ();
 #endif
 
-#if defined WINDOWSNT || defined HAVE_NTGUI
+      /* Not WINDOWSNT: the clipboard is Windows's, but w32select.o is
+	 only built where the w32 window system is (see W32_OBJ in
+	 configure.ac), and a host application has a clipboard of its
+	 own.  */
+#ifdef HAVE_NTGUI
       syms_of_w32select ();
 #endif
 
@@ -2521,7 +2523,16 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #ifdef HAVE_W32NOTIFY
       syms_of_w32notify ();
 #endif /* HAVE_W32NOTIFY */
+      /* DirectWrite draws a w32 frame's text; another window system
+	 has its own way of drawing.  */
+#ifdef HAVE_NTGUI
       syms_of_w32dwrite ();
+#endif
+      /* What Windows itself gives Emacs where w32fns.c is not built to
+	 give it (libemacs/src/w32base.c).  */
+#ifndef HAVE_NTGUI
+      syms_of_w32base ();
+#endif
 #endif /* WINDOWSNT */
       syms_of_host ();
       syms_of_hostscreen ();
@@ -2552,8 +2563,12 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 # endif
 #endif  /* HAVE_NTGUI */
 
-#if defined WINDOWSNT || defined HAVE_NTGUI
+#ifdef HAVE_NTGUI
       globals_of_w32select ();
+#endif
+
+#if defined WINDOWSNT && !defined HAVE_NTGUI
+      globals_of_w32base ();
 #endif
     }
 

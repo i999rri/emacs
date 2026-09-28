@@ -97,18 +97,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef HAVE_NTGUI
 #include "w32term.h"	/* for enter_crit/leave_crit and WM_EMACS_FILENOTIFY */
 #else
-/* Declared there, and the rest of that header is the w32 window
-   system's: the critical sections are Windows's whatever draws the
-   frames, and nothing here waits on a window's message queue.  */
-extern void enter_crit (void);
-extern void leave_crit (void);
-/* What a thread of its own wakes the one Emacs runs on with.  Both are
-   declared in w32term.h beside the messages a window is sent, although
-   this one is sent to a thread and not to a window; said again here,
-   with the numbers that file says, so that the two agree.  */
-extern DWORD dwMainThreadId;
-#define WM_EMACS_START (WM_USER + 1)
-#define WM_EMACS_FILENOTIFY (WM_EMACS_START + 25)
+/* The same things, apart from the w32 window system: the critical
+   section is Windows's whatever draws the frames, and what is woken
+   here is a thread and not a window.  */
+#include "w32base.h"
 #endif
 #include "w32common.h"	/* for OS version data */
 #include "w32.h"	/* for w32_strerror */

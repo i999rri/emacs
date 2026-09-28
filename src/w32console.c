@@ -35,7 +35,14 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "termchar.h"	/* for FRAME_TTY */
 #include "dispextern.h"	/* for tty_defined_color */
 #include "menu.h"	/* for tty_menu_show */
+#ifdef HAVE_NTGUI
 #include "w32term.h"
+#else
+/* The same, apart from the w32 window system.  frame.h comes with
+   w32term.h and is wanted either way.  */
+#include "frame.h"
+#include "w32base.h"
+#endif
 #include "w32common.h"	/* for os_subtype */
 #include "w32inevt.h"
 
@@ -1127,8 +1134,13 @@ initialize_w32_display (struct terminal *term, int *width, int *height)
   else
     w32_console_unicode_input = 0;
 
-  /* Setup w32_display_info structure for this frame.  */
+  /* Setup w32_display_info structure for this frame.  Only where
+     there is a w32 display to describe: the console's own frames are
+     told apart by their tty, and another window system keeps its
+     display of its own.  */
+#ifdef HAVE_NTGUI
   w32_initialize_display_info (build_string ("Console"));
+#endif
 
   HWND hwnd = NULL;
   EnumThreadWindows (GetCurrentThreadId (), find_ime_window, (LPARAM) &hwnd);

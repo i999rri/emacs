@@ -39,7 +39,21 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "frame.h"
 #include "blockinput.h"
 #include "termchar.h"	/* for Mouse_HLInfo, tty_display_info */
+#ifdef HAVE_NTGUI
 #include "w32term.h"
+#else
+/* The console's own input, which is Windows's whatever draws the
+   frames: w32base.h is what w32term.h declares of Windows itself, and
+   the rest of that header would make a console frame's mouse
+   highlight the w32 window system's.  frame.h comes with w32term.h
+   and is wanted either way, and MOUSE_HL_INFO in it asks whichever
+   window system there is where its display info is.  */
+#include "frame.h"
+#ifdef HAVE_WINDOW_SYSTEM
+#include TERM_HEADER
+#endif
+#include "w32base.h"
+#endif
 #include "w32inevt.h"
 #include "w32common.h"
 

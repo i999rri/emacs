@@ -10548,7 +10548,11 @@ term_ntproc (int ignored)
   /* Shut down the socket interface if necessary.  */
   term_winsock ();
 
+  /* The clipboard, wherever w32select.c is built (see W32_OBJ in
+     configure.ac): a host application has one of its own.  */
+#ifdef HAVE_NTGUI
   term_w32select ();
+#endif
   /* Exit all worker threads of sys_select if necessary.  */
   free_wait_pool ();
 
@@ -10751,7 +10755,9 @@ maybe_load_unicows_dll (void)
 	  pWideCharToMultiByte = (WideCharToMultiByte_Proc)
             get_proc_addr (ret, "WideCharToMultiByte");
           multiByteToWideCharFlags = MB_ERR_INVALID_CHARS;
+#ifdef HAVE_NTGUI
 	  load_unicows_dll_for_w32fns (ret);
+#endif
 	  return ret;
 	}
       else
@@ -10786,7 +10792,10 @@ maybe_load_unicows_dll (void)
         multiByteToWideCharFlags = 0;
       else
         multiByteToWideCharFlags = MB_ERR_INVALID_CHARS;
+      /* Only w32fns.c calls into UNICOWS.DLL for anything else.  */
+#ifdef HAVE_NTGUI
       load_unicows_dll_for_w32fns (NULL);
+#endif
       return LoadLibrary ("Gdi32.dll");
     }
 }
