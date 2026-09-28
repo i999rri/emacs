@@ -332,6 +332,10 @@
 (if (or (eq system-type 'windows-nt)
         (featurep 'w32))
     (progn
+      ;; Options for Windows itself as much as for that window system:
+      ;; both term/w32-win and w32-fns below require them, and require
+      ;; cannot load anything while preparing to dump.
+      (load "w32-vars")
       ;; The w32 window system's own, which a build whose frames are
       ;; drawn another way is on Windows without.
       (when (featurep 'w32)
@@ -339,9 +343,6 @@
         (load "term/w32-win"))
       (load "disp-table")
       (when (eq system-type 'windows-nt)
-        ;; Options for Windows itself as much as for that window
-        ;; system, and w32-fns below asks for them.
-        (load "w32-vars")
         (load "term/w32-nt")
         (load "w32-fns")
         (load "ls-lisp")

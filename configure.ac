@@ -3068,10 +3068,11 @@ if test "${with_w32}" != no; then
   esac
 fi
 
-dnl Not where another window system was asked for: on Windows the w32
-dnl one is found rather than asked for, and this is where it is found
-dnl however `--with-w32' was answered above.
-if test "${opsys}" = "mingw32" && test "${with_w32}" != "no"; then
+dnl Not where another window system was asked for.  On Windows the w32
+dnl one is found rather than asked for -- `--with-w32' is a no-op here
+dnl and defaults to no -- so it is --with-host that has to say no, and
+dnl not that option.
+if test "${opsys}" = "mingw32" && test "${with_host}" != "yes"; then
   AC_CACHE_CHECK([whether Windows API headers are recent enough], [emacs_cv_w32api],
   [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
      #include <windows.h>
