@@ -2649,6 +2649,10 @@ AS_IF([test "$with_host" = "yes"],[
   dnl The fonts are the sfnt engine's, which reads font files itself
   dnl and only measures here (sfntfont-host.c).
   HOST_OBJ="hostterm.o hostdraw.o hostrecord.o hostfont.o hostfns.o hostinput.o sfnt.o sfntfont.o sfntfont-host.o"
+  dnl On Windows, the half of w32xfns.c that is Windows's own: that file
+  dnl is the w32 window system's to build, and the threads and the
+  dnl message queue in it are wanted here as well.
+  AS_IF([test "${opsys}" = "mingw32"], [HOST_OBJ="$HOST_OBJ w32base.o"])
   AC_DEFINE([HAVE_HOST], [1], [Define to 1 if Emacs's frames are drawn
 by a host application (libemacs).])
 ])

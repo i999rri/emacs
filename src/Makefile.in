@@ -675,7 +675,7 @@ endif
 ## make-docfile finds a source from its object's name in $(srcdir), so
 ## the objects whose sources are in libemacs/src are named to it with
 ## the way there.
-LIBEMACS_OBJ = $(LIBEMACS_BASE_OBJ) w32host.o w32dll.o w32start.o \
+LIBEMACS_OBJ = $(LIBEMACS_BASE_OBJ) w32host.o w32dll.o w32start.o w32base.o \
   hostterm.o hostdraw.o hostrecord.o hostfont.o hostfns.o hostinput.o sfntfont-host.o
 docfile_names = $(foreach o,$(1),$(if $(filter $(o),$(LIBEMACS_OBJ)),../libemacs/src/$(o),$(o)))
 
