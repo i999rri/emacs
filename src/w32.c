@@ -1683,17 +1683,19 @@ void
 w32_init_file_name_codepage (void)
 {
   file_name_codepage = CP_ACP;
-  w32_ansi_code_page = CP_ACP;
+  /* What codepage Windows talks to this process in, which decides the
+     coding system a program Emacs runs is read with.  Asked here, of
+     Windows, rather than where a window system is set up: a build
+     that draws its frames another way sets none up, and left at
+     CP_ACP, which is zero, Emacs looks for a coding system called cp0
+     and finds none.  */
+  w32_ansi_code_page = GetACP ();
 #ifdef HAVE_PDUMPER
   /* If we were dumped with pdumper, this function will be called after
      loading the pdumper file, and needs to reset the following
      variables that come from the dump stage, which could be on a
-     different system with different default codepages.  Then, the
-     correct value of w32-ansi-code-page will be assigned by
-     globals_of_w32fns, which is called from 'main'.  Until that call
-     happens, w32-ansi-code-page will have the value of CP_ACP, which
-     stands for the default ANSI codepage.  The other variables will be
-     computed by codepage_for_filenames below.  */
+     different system with different default codepages.  The other
+     variables will be computed by codepage_for_filenames below.  */
   Vdefault_file_name_coding_system = Qnil;
   Vfile_name_coding_system = Qnil;
 #endif

@@ -12292,8 +12292,6 @@ globals_of_w32fns (void)
   resetstkoflw = NULL;
 #endif
 
-  w32_ansi_code_page = GetACP ();
-
 #ifndef CYGWIN
   DEFVAR_INT ("w32-multibyte-code-page",
 	      w32_multibyte_code_page,
