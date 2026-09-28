@@ -5517,7 +5517,7 @@ static bool xpm_load (struct frame *f, struct image *img);
 #endif /* HAVE_XPM */
 
 #if defined HAVE_XPM || defined USE_CAIRO || defined HAVE_NS	\
-  || defined HAVE_HAIKU || defined HAVE_ANDROID
+  || defined HAVE_HAIKU || defined HAVE_ANDROID || defined HAVE_HOST
 
 /* Indices of image specification fields in xpm_format, below.  */
 
@@ -5738,7 +5738,10 @@ xpm_free_colors (Display *dpy, Colormap cmap, Pixel *pixels, int npixels, void *
 #endif /* ALLOC_XPM_COLORS */
 
 
-#ifdef WINDOWSNT
+/* Not WINDOWSNT alone: these are libXpm's, which only a build that
+   reads XPM through that library has; the built-in reader below is
+   what the rest read it with.  */
+#if defined WINDOWSNT && defined HAVE_XPM
 
 /* XPM library details.  */
 
@@ -5776,7 +5779,7 @@ init_xpm_functions (void)
 # define XpmFreeAttributes fn_XpmFreeAttributes
 # define XpmReadFileToImage fn_XpmReadFileToImage
 
-#endif /* WINDOWSNT */
+#endif /* WINDOWSNT && HAVE_XPM */
 
 #if defined HAVE_XPM || defined HAVE_NS || defined HAVE_HAIKU	\
   || defined HAVE_PGTK || defined HAVE_ANDROID || defined HAVE_HOST
