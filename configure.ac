@@ -3140,7 +3140,7 @@ dnl window system, and a build that draws its frames another way needs
 dnl it all the same.
 if test "${opsys}" = "mingw32"; then
   W32_OBJ="$W32_OBJ w32.o w32console.o w32heap.o w32inevt.o w32proc.o"
-  W32_OBJ="$W32_OBJ w32start.o w32host.o"
+  W32_OBJ="$W32_OBJ w32start.o"
   W32_LIBS="$W32_LIBS -lwinmm -lgdi32 -lcomdlg32"
   W32_LIBS="$W32_LIBS -lmpr -lwinspool -lole32 -lcomctl32"
   NTDIR=nt

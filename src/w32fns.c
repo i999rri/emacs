@@ -55,7 +55,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "coding.h"
 
 #include "w32common.h"
-#include "w32host.h"
 #include "w32inevt.h"
 
 #ifdef WINDOWSNT
@@ -1584,10 +1583,6 @@ w32_clear_under_internal_border (struct frame *f)
 {
   int border = FRAME_INTERNAL_BORDER_WIDTH (f);
 
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (f->output_data.w32->host_drawn)
-    return;
-
   /* Clear border if it's larger than before.  */
   if (border != 0)
     {
@@ -2706,32 +2701,10 @@ w32_createwindow (struct frame *f, int *coords)
   Lisp_Object border_width = Fcdr (Fassq (Qborder_width, f->param_alist));
   static EMACS_INT touch_base;
 
-  /* A host application draws this frame itself, out of the layout it
-     reads back, so the frame needs no window on any screen.  What it
-     still needs a window for is to be posted to and to be asked for a
-     device context to measure text with, and a message-only window is
-     both of those and nothing else: it belongs to no desktop, so there
-     is nowhere for it to be seen, and nothing to draw, clip, raise or
-     hide.  A frame that belongs to another frame is placed by Emacs as
-     ever, inside that one.  */
-  if (!FRAME_PARENT_FRAME (f) && !f->output_data.w32->explicit_parent
-      && w32_host_window ())
-    {
-      f->output_data.w32->host_drawn = 1;
-      f->output_data.w32->dwStyle = WS_POPUP;
-      parent_hwnd = HWND_MESSAGE;
-    }
-  else if (FRAME_PARENT_FRAME (f) && FRAME_W32_P (FRAME_PARENT_FRAME (f)))
+  if (FRAME_PARENT_FRAME (f) && FRAME_W32_P (FRAME_PARENT_FRAME (f)))
     {
       parent_hwnd = FRAME_W32_WINDOW (FRAME_PARENT_FRAME (f));
       f->output_data.w32->dwStyle = WS_CHILD | WS_CLIPSIBLINGS;
-
-      /* A frame inside one the host draws is drawn by the host too, over
-	 its parent.  Its window is inside its parent's, which is on no
-	 screen, so it would never be shown, and a frame Emacs thinks is
-	 not shown is one it does not lay out.  */
-      if (FRAME_PARENT_FRAME (f)->output_data.w32->host_drawn)
-	f->output_data.w32->host_drawn = 1;
 
       if (FRAME_UNDECORATED (f))
 	{
@@ -2875,12 +2848,6 @@ w32_createwindow (struct frame *f, int *coords)
 
       f->left_pos = rect.left;
       f->top_pos = rect.top;
-
-      /* The host sends this frame its input, and cannot until it knows
-	 which window to send it to.  A child frame is not told about:
-	 the host has one window, and the frame it shows is the root.  */
-      if (f->output_data.w32->host_drawn && !FRAME_PARENT_FRAME (f))
-	w32_host_frame_created (hwnd);
     }
 }
 
@@ -5299,13 +5266,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 	  struct frame *p = FRAME_PARENT_FRAME (XFRAME (selected_frame));
 
-	  /* Only a frame Windows draws is given the focus here.  The
-	     window of a frame the host draws is on no screen, and giving
-	     it the focus takes it from the host's window, which is where
-	     the keys arrive; the click selects the frame all the same,
-	     from the event it is posted as.  */
-	  if (!f->output_data.w32->host_drawn
-	      && (FRAME_PARENT_FRAME (f) || f == p))
+	  if (FRAME_PARENT_FRAME (f) || f == p)
 	    {
 	      SetFocus (hwnd);
 	      SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
@@ -8453,7 +8414,7 @@ DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
 	/* Set up the inout parameter for the selected file name.  */
 	file_details_w->lpstrFile = filename_buf_w;
 	file_details_w->nMaxFile = ARRAYELTS (filename_buf_w);
-	file_details_w->hwndOwner = w32_dialog_owner (f);
+	file_details_w->hwndOwner = FRAME_W32_WINDOW (f);
 	/* Undocumented Bug in Common File Dialog:
 	   If a filter is not specified, shell links are not resolved.  */
 	file_details_w->lpstrFilter = filter_w;
@@ -8486,7 +8447,7 @@ DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
 	  file_details_a->lStructSize = sizeof (*file_details_a);
 	file_details_a->lpstrFile = filename_buf_a;
 	file_details_a->nMaxFile = ARRAYELTS (filename_buf_a);
-	file_details_a->hwndOwner = w32_dialog_owner (f);
+	file_details_a->hwndOwner = FRAME_W32_WINDOW (f);
 	file_details_a->lpstrFilter = filter_a;
 	file_details_a->lpstrInitialDir = dir_a;
 	file_details_a->lpstrTitle = prompt_a;

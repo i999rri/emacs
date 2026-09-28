@@ -23,7 +23,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "blockinput.h"
 #include "w32term.h"
-#include "w32host.h"
 #include "w32common.h"	/* for OS version info */
 #include <wtypes.h>
 #include <gdiplus.h>
@@ -685,26 +684,9 @@ w32_update_window_begin (struct window *w)
 
 /* Draw a vertical window border from (x,y0) to (x,y1)  */
 
-/* Whether F is drawn by a host application.
-
-   Emacs lays such a frame out as it lays out any other, and draws none
-   of it: the host reads the layout back with `window-screen-rows' and
-   draws it in whatever it draws with.  Drawing it here as well would
-   be work for a window nobody is shown.  */
-
-static bool
-w32_host_drawn (struct frame *f)
-{
-  return f && FRAME_W32_P (f) && f->output_data.w32->host_drawn;
-}
-
 static void
 w32_draw_vertical_window_border (struct window *w, int x, int y0, int y1)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (XFRAME (w->frame)))
-    return;
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   RECT r;
   HDC hdc;
@@ -731,10 +713,6 @@ w32_draw_vertical_window_border (struct window *w, int x, int y0, int y1)
 static void
 w32_draw_window_divider (struct window *w, int x0, int x1, int y0, int y1)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (XFRAME (w->frame)))
-    return;
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   HDC hdc = get_frame_dc (f);
   struct face *face = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FACE_ID);
@@ -860,10 +838,6 @@ w32_flip_buffers_if_dirty (struct frame *f)
 static void
 w32_after_update_window_line (struct window *w, struct glyph_row *desired_row)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (XFRAME (w->frame)))
-    return;
   struct frame *f;
   int width, height;
 
@@ -927,10 +901,6 @@ static void
 w32_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 			struct draw_fringe_bitmap_params *p)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (XFRAME (w->frame)))
-    return;
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   HDC hdc;
   struct face *face = p->face;
@@ -2747,10 +2717,6 @@ w32_fill_underline (struct frame *f, struct glyph_string *s,
 static void
 w32_draw_glyph_string (struct glyph_string *s)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (s->f))
-    return;
   bool relief_drawn_p = 0;
 
   /* If S draws into the background of its successor, draw the
@@ -3076,10 +3042,6 @@ static void
 w32_shift_glyphs_for_insert (struct frame *f, int x, int y,
 			     int width, int height, int shift_by)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (f))
-    return;
   HDC hdc;
 
   hdc = get_frame_dc (f);
@@ -3108,10 +3070,6 @@ w32_delete_glyphs (struct frame *f, register int n)
 static void
 w32_clear_frame (struct frame *f)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (f))
-    return;
   if (! FRAME_W32_P (f))
     return;
 
@@ -3178,10 +3136,6 @@ w32_ins_del_lines (struct frame *f, int vpos, int n)
 static void
 w32_scroll_run (struct window *w, struct run *run)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (XFRAME (w->frame)))
-    return;
   struct frame *f = XFRAME (w->frame);
   int x, y, width, height, from_y, to_y, bottom_y;
   HDC hdc;
@@ -3372,25 +3326,6 @@ w32_detect_focus_change (struct w32_display_info *dpyinfo, W32Msg *event,
   frame = w32_window_to_frame (dpyinfo, event->msg.hwnd);
   if (! frame)
     return;
-
-  /* The host tells a frame it draws about the focus through the root
-     frame's window, as it sends its keys.  While the root sends its
-     keys on to another frame, a floating minibuffer for one, the focus
-     is that frame's too: taking it as the root's would switch Emacs to
-     the root when the window comes back, away from the minibuffer that
-     was being typed in.  Losing the focus is losing it from whichever
-     frame has it, which is where the keys went until then.  */
-  if (w32_host_drawn (frame))
-    {
-      struct frame *focused = dpyinfo->w32_focus_event_frame;
-      Lisp_Object focus = FRAME_FOCUS_FRAME (frame);
-
-      if (event->msg.message == WM_KILLFOCUS
-	  && focused && w32_host_drawn (focused))
-	frame = focused;
-      else if (FRAMEP (focus) && FRAME_LIVE_P (XFRAME (focus)))
-	frame = XFRAME (focus);
-    }
 
   /* On w32, this is only called from focus events, so no switch needed.  */
   w32_focus_changed (event->msg.message,
@@ -3934,38 +3869,12 @@ w32_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
       POINT pt;
       Lisp_Object frame, tail;
       struct frame *f1 = NULL;
-      struct frame *motion = dpyinfo->last_mouse_motion_frame;
 
       /* Clear the mouse-moved flag for every frame on this display.  */
       FOR_EACH_FRAME (tail, frame)
 	XFRAME (frame)->mouse_moved = false;
 
       dpyinfo->last_mouse_scroll_bar = NULL;
-
-      /* A frame the host draws is where the host says the mouse is: its
-	 window is on no screen, so where the pointer is on the screen
-	 says nothing about where it is on the frame.  The host sends
-	 where it is with every move, and a drag that has left the frame
-	 is somewhere to the left of it or above it, which is to say at
-	 a place less than nothing.  */
-      if (motion && FRAME_LIVE_P (motion) && w32_host_drawn (motion))
-	{
-	  int mouse_x = (short) dpyinfo->last_mouse_motion_x;
-	  int mouse_y = (short) dpyinfo->last_mouse_motion_y;
-
-	  f1 = motion;
-	  remember_mouse_glyph (f1, mouse_x, mouse_y, &dpyinfo->last_mouse_glyph);
-	  dpyinfo->last_mouse_glyph_frame = f1;
-
-	  *bar_window = Qnil;
-	  *part = scroll_bar_above_handle;
-	  *fp = f1;
-	  XSETINT (*x, mouse_x);
-	  XSETINT (*y, mouse_y);
-	  *time = dpyinfo->last_mouse_movement_time;
-	  unblock_input ();
-	  return;
-	}
 
       GetCursorPos (&pt);
 
@@ -5622,10 +5531,7 @@ w32_read_socket (struct terminal *terminal,
 			&& f != dpyinfo->w32_focus_frame
 			/* This does not help when the click happens in
 			   a grand-parent frame.  */
-			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)
-			/* A frame the host draws has the focus with the
-			   host's window, which the click came through.  */
-			&& !w32_host_drawn (f)))
+			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)))
 		  inev.kind = NO_EVENT;
 
 		if (!NILP (tab_bar_arg))
@@ -5664,10 +5570,7 @@ w32_read_socket (struct terminal *terminal,
 			&& f != dpyinfo->w32_focus_frame
 			/* This does not help when the click happens in
 			   a grand-parent frame.  */
-			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)
-			/* A frame the host draws has the focus with the
-			   host's window, which the click came through.  */
-			&& !w32_host_drawn (f)))
+			&& !frame_ancestor_p (f, dpyinfo->w32_focus_frame)))
 		  inev.kind = NO_EVENT;
 	      }
 
@@ -6511,12 +6414,6 @@ w32_read_socket (struct terminal *terminal,
 	/* Check "visible" frames and mark each as visible or not.
 	   Note that visible is nonzero for unobscured and obscured
 	   frames, but zero for hidden and iconified frames.  */
-	/* A frame the host draws is on the host's screen, and asking
-	   the window it does not draw into whether any of it can be
-	   seen would say no and is work besides.  */
-	if (w32_host_drawn (f))
-	  continue;
-
 	if (FRAME_W32_P (f) && FRAME_VISIBLE_P (f))
 	  {
 	    RECT clipbox;
@@ -6731,10 +6628,6 @@ w32_define_frame_cursor (struct frame *f, Emacs_Cursor cursor)
 static void
 w32_clear_frame_area (struct frame *f, int x, int y, int width, int height)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (f))
-    return;
   HDC hdc;
 
   hdc = get_frame_dc (f);
@@ -6749,10 +6642,6 @@ w32_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
 			int x, int y, enum text_cursor_kinds cursor_type,
 			int cursor_width, bool on_p, bool active_p)
 {
-
-  /* Nothing of a frame the host draws is drawn here.  */
-  if (w32_host_drawn (XFRAME (w->frame)))
-    return;
   if (on_p)
     {
       /* If the user wants to use the system caret, make sure our own
@@ -7486,25 +7375,6 @@ w32_focus_frame (struct frame *f, bool noactivate)
   struct w32_display_info *dpyinfo = &one_w32_display_info;
 #endif
 
-  /* A frame the host draws is not given the focus by Windows: the
-     window the host passes keys from is the root frame's, and that is
-     where the keys arrive.  They are sent on to this frame instead, the
-     way the keys of a frame with no minibuffer are sent to the frame
-     its minibuffer is on, and Emacs reads them as this frame's without
-     switching frames to do it.  */
-  if (w32_host_drawn (f))
-    {
-      struct frame *root = f;
-      Lisp_Object root_frame, focus;
-
-      while (FRAME_PARENT_FRAME (root))
-	root = FRAME_PARENT_FRAME (root);
-      XSETFRAME (root_frame, root);
-      XSETFRAME (focus, f);
-      Fredirect_frame_focus (root_frame, root == f ? Qnil : focus);
-      return;
-    }
-
   /* Give input focus to frame.  */
   block_input ();
 #if 0
@@ -7521,14 +7391,6 @@ w32_focus_frame (struct frame *f, bool noactivate)
 static void
 w32_raise_frame (struct frame *f)
 {
-  /* A frame the host draws is not raised by Windows: its window is on
-     no screen, and the host puts what it draws of the frame above the
-     rest itself.  Raising the window would bring it to the foreground,
-     taking the focus from the host's window, which is where the keys
-     arrive.  */
-  if (w32_host_drawn (f))
-    return;
-
   block_input ();
 
   /* Strictly speaking, raise-frame should only change the frame's Z
@@ -7591,10 +7453,6 @@ w32_raise_frame (struct frame *f)
 static void
 w32_lower_frame (struct frame *f)
 {
-  /* Nor is it lowered: its window is on no screen to be lowered on.  */
-  if (w32_host_drawn (f))
-    return;
-
   block_input ();
   my_set_window_pos (FRAME_W32_WINDOW (f),
 		     HWND_BOTTOM,
@@ -7675,16 +7533,6 @@ w32_make_frame_visible (struct frame *f)
 		      : FRAME_NO_FOCUS_ON_MAP (f)
 		      ? SW_SHOWNOACTIVATE
 		      : SW_SHOWNORMAL);
-
-      /* A frame the host draws is told that it is on the screen rather
-	 than left to find out.  What Emacs would wait for is a paint
-	 message with something in it, and one never comes: the frame is
-	 drawn by the host, out of what redisplay decided, and its own
-	 window is on no screen to paint on.  Without this it stays
-	 invisible, and an invisible frame is one redisplay does not lay
-	 out.  */
-      if (w32_host_drawn (f))
-	SET_FRAME_VISIBLE (f, 1);
     }
 
   if (!FLOATP (Vx_wait_for_event_timeout))

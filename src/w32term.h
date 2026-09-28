@@ -396,13 +396,6 @@ struct w32_output
   /* Nonzero means tried already to make this frame visible.  */
   unsigned asked_for_visible : 1;
 
-  /* Nonzero means a host application draws this frame.  Emacs lays it
-     out as it lays out any other and draws none of it: the host reads
-     the layout back and draws it in whatever it draws with.  Its
-     window is a message-only one, which is on no screen at all, and is
-     there to be posted to and to be asked for a device context.  */
-  unsigned host_drawn : 1;
-
   /* Nonzero means menubar is currently active.  */
   unsigned menubar_active : 1;
 

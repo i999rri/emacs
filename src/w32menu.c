@@ -26,7 +26,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "keyboard.h"
 #include "frame.h"
-#include "w32host.h"
 #include "blockinput.h"
 #include "buffer.h"
 #include "coding.h"	/* for ENCODE_SYSTEM */
@@ -280,7 +279,7 @@ w32_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
       int pressed_button = 0;
 
       TASKDIALOGCONFIG config = { 0 };
-      config.hwndParent = w32_dialog_owner (f);
+      config.hwndParent = FRAME_W32_WINDOW (f);
       config.cbSize = sizeof (config);
       config.hInstance = hinst;
       config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
@@ -1348,7 +1347,7 @@ simple_dialog_show (struct frame *f, Lisp_Object contents, Lisp_Object header)
 	  type |= MB_ICONINFORMATION;
 	}
 
-      answer = unicode_message_box (w32_dialog_owner (f), text, title, type);
+      answer = unicode_message_box (FRAME_W32_WINDOW (f), text, title, type);
       SAFE_FREE ();
     }
   else
@@ -1374,7 +1373,7 @@ simple_dialog_show (struct frame *f, Lisp_Object contents, Lisp_Object header)
 	  type |= MB_ICONINFORMATION;
 	}
 
-      answer = MessageBox (w32_dialog_owner (f), text, title, type);
+      answer = MessageBox (FRAME_W32_WINDOW (f), text, title, type);
     }
 
   if (answer == IDYES)
