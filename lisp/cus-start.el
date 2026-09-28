@@ -904,6 +904,11 @@ since it could result in memory overflow and make Emacs crash."
 		 (cond
 		  ((string-prefix-p "dos-" sym-name)
                    (eq system-type 'ms-dos))
+                  ((eq symbol 'w32-follow-system-dark-mode)
+                   ;; The w32 window system's, not Windows's: a build
+                   ;; that draws its frames another way is on Windows
+                   ;; and has no w32fns.c to define this.
+                   (fboundp 'w32-send-sys-command))
 		  ((string-prefix-p "w32-" sym-name)
                    (eq system-type 'windows-nt))
 		  ((string-prefix-p "ns-" sym-name)
