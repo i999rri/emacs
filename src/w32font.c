@@ -2888,7 +2888,6 @@ syms_of_w32font (void)
   /* Fake foundries.  */
   DEFSYM (Qraster, "raster");
   DEFSYM (Qoutline, "outline");
-  DEFSYM (Qunknown, "unknown");
 
   /* Antialiasing.  */
   DEFSYM (Qstandard, "standard");

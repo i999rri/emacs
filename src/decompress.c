@@ -342,6 +342,11 @@ This function can be called only in unibyte buffers.  */)
 void
 syms_of_decompress (void)
 {
+#ifdef WINDOWSNT
+  /* The name the library is looked for under, said where it is asked
+     for rather than in the file of a window system.  */
+  DEFSYM (Qzlib, "zlib");
+#endif
   defsubr (&Szlib_decompress_region);
   defsubr (&Szlib_available_p);
 }

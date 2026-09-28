@@ -317,7 +317,9 @@ extern struct tm *localtime_r (time_t const * restrict, struct tm * restrict);
 /* Here we redirect CRT's 'read' to our own implementation, see bug#73444.  */
 #undef read
 #define read    sys_read
-int sys_read (int, char *, unsigned int);
+/* Taking a void * as read(2) does, and not a char *: this stands in
+   for read, and what is read into is whatever the caller has.  */
+int sys_read (int, void *, unsigned int);
 
 /* Defines that we need that aren't in the standard signal.h.  */
 #define SIGHUP  1               /* Hang up */

@@ -94,7 +94,22 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <windows.h>
 
 #include "lisp.h"
+#ifdef HAVE_NTGUI
 #include "w32term.h"	/* for enter_crit/leave_crit and WM_EMACS_FILENOTIFY */
+#else
+/* Declared there, and the rest of that header is the w32 window
+   system's: the critical sections are Windows's whatever draws the
+   frames, and nothing here waits on a window's message queue.  */
+extern void enter_crit (void);
+extern void leave_crit (void);
+/* What a thread of its own wakes the one Emacs runs on with.  Both are
+   declared in w32term.h beside the messages a window is sent, although
+   this one is sent to a thread and not to a window; said again here,
+   with the numbers that file says, so that the two agree.  */
+extern DWORD dwMainThreadId;
+#define WM_EMACS_START (WM_USER + 1)
+#define WM_EMACS_FILENOTIFY (WM_EMACS_START + 25)
+#endif
 #include "w32common.h"	/* for OS version data */
 #include "w32.h"	/* for w32_strerror */
 #include "coding.h"
@@ -147,16 +162,24 @@ send_notifications (struct notifications_set *ns)
      happens, the last thing they will worry about is file
      notifications.  So we effectively discard the notification in
      that case.  */
+  /* A frame drawn by something else has no window of Emacs's own to
+     post to, and is woken the way a frame on a terminal is.  */
+#ifdef HAVE_HOST
+  if (true)
+#else
   if (FRAME_TERMCAP_P (f))
+#endif
     /* We send the message to the main (a.k.a. "Lisp") thread, where
        it will wake up MsgWaitForMultipleObjects inside sys_select,
        causing it to report that there's some keyboard input
        available.  This will in turn cause w32_console_read_socket to
        be called, which will pick up the file notifications.  */
     PostThreadMessage (dwMainThreadId, WM_EMACS_FILENOTIFY, 0, 0);
+#ifndef HAVE_HOST
   else if (FRAME_W32_P (f))
     PostMessage (FRAME_W32_WINDOW (f),
                  WM_EMACS_FILENOTIFY, 0, 0);
+#endif
   /* When we are running in batch mode, there's no one to send a
      message, so we just signal the data is available and hope
      sys_select will be called soon and will read the data.  */

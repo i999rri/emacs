@@ -157,7 +157,7 @@ You lose; /* Emacs for DOS must be compiled with DJGPP */
 #define DATA_START (&etext + 1)
 #endif  /* MSDOS */
 
-#if defined HAVE_NTGUI && !defined DebPrint
+#if (defined HAVE_NTGUI || defined WINDOWSNT) && !defined DebPrint
 # ifdef EMACSDEBUG
 extern void _DebPrint (const char *fmt, ...);
 #  define DebPrint(stuff) _DebPrint stuff

@@ -589,6 +589,11 @@ DEFUN ("lcms2-available-p", Flcms2_available_p, Slcms2_available_p, 0, 0, 0,
 void
 syms_of_lcms2 (void)
 {
+#ifdef WINDOWSNT
+  /* As in xml.c: the name the library is looked for under, said where
+     it is asked for.  */
+  DEFSYM (Qlcms2, "lcms2");
+#endif
   defsubr (&Slcms_cie_de2000);
   defsubr (&Slcms_xyz_to_jch);
   defsubr (&Slcms_jch_to_xyz);

@@ -11649,10 +11649,7 @@ syms_of_w32fns (void)
 
   /* Symbols used elsewhere, but only in MS-Windows-specific code.  */
   DEFSYM (Qgnutls, "gnutls");
-  DEFSYM (Qlibxml2, "libxml2");
   DEFSYM (Qserif, "serif");
-  DEFSYM (Qzlib, "zlib");
-  DEFSYM (Qlcms2, "lcms2");
   DEFSYM (Qjson, "json");
 
   Fput (Qundefined_color, Qerror_conditions,
@@ -11683,108 +11680,17 @@ When nil, Emacs will translate the Alt key to the ALT modifier, not to META.  */
 	       doc: /* If non-zero, the virtual key code for an alternative quit key.  */);
   w32_quit_key = 0;
 
-  DEFVAR_LISP ("w32-pass-lwindow-to-system",
-	       Vw32_pass_lwindow_to_system,
-	       doc: /* If non-nil, the left \"Windows\" key is passed on to Windows.
 
-When non-nil, the Start menu is opened by tapping the key.
-If you set this to nil, the left \"Windows\" key is processed by Emacs
-according to the value of `w32-lwindow-modifier', which see.
 
-Note that some combinations of the left \"Windows\" key with other
-keys are caught by Windows at low level.  For example, <lwindow>-r
-pops up the Windows Run dialog, <lwindow>-<Pause> pops up the "System
-Properties" dialog, etc.  On Windows 10, no \"Windows\" key
-combinations are normally handed to applications.  To enable Emacs to
-process \"Windows\" key combinations, use the function
-`w32-register-hot-key'.
-
-For Windows 98/ME, see the doc string of `w32-phantom-key-code'.  */);
-  Vw32_pass_lwindow_to_system = Qt;
-
-  DEFVAR_LISP ("w32-pass-rwindow-to-system",
-	       Vw32_pass_rwindow_to_system,
-	       doc: /* If non-nil, the right \"Windows\" key is passed on to Windows.
-
-When non-nil, the Start menu is opened by tapping the key.
-If you set this to nil, the right \"Windows\" key is processed by Emacs
-according to the value of `w32-rwindow-modifier', which see.
-
-Note that some combinations of the right \"Windows\" key with other
-keys are caught by Windows at low level.  For example, <rwindow>-r
-pops up the Windows Run dialog, <rwindow>-<Pause> pops up the "System
-Properties" dialog, etc.  On Windows 10, no \"Windows\" key
-combinations are normally handed to applications.  To enable Emacs to
-process \"Windows\" key combinations, use the function
-`w32-register-hot-key'.
-
-For Windows 98/ME, see the doc string of `w32-phantom-key-code'.  */);
-  Vw32_pass_rwindow_to_system = Qt;
-
-  DEFVAR_LISP ("w32-phantom-key-code",
-	       Vw32_phantom_key_code,
-	       doc: /* Virtual key code used to generate \"phantom\" key presses.
-Value is a number between 0 and 255.
-
-Phantom key presses are generated in order to stop the system from
-acting on \"Windows\" key events when `w32-pass-lwindow-to-system' or
-`w32-pass-rwindow-to-system' is nil.
-
-This variable is only used on Windows 98 and ME.  For other Windows
-versions, see the documentation of the `w32-register-hot-key'
-function.  */);
   /* Although 255 is technically not a valid key code, it works and
      means that this hack won't interfere with any real key code.  */
   XSETINT (Vw32_phantom_key_code, 255);
 
-  DEFVAR_LISP ("w32-enable-num-lock",
-	       Vw32_enable_num_lock,
-	       doc: /* If non-nil, the Num Lock key acts normally.
-Set to nil to handle Num Lock as the `kp-numlock' key.  */);
-  Vw32_enable_num_lock = Qt;
 
-  DEFVAR_LISP ("w32-enable-caps-lock",
-	       Vw32_enable_caps_lock,
-	       doc: /* If non-nil, the Caps Lock key acts normally.
-Set to nil to handle Caps Lock as the `capslock' key.  */);
-  Vw32_enable_caps_lock = Qt;
 
-  DEFVAR_LISP ("w32-scroll-lock-modifier",
-	       Vw32_scroll_lock_modifier,
-	       doc: /* Modifier to use for the Scroll Lock ON state.
-The value can be hyper, super, meta, alt, control or shift for the
-respective modifier, or nil to handle Scroll Lock as the `scroll' key.
-Any other value will cause the Scroll Lock key to be ignored by Emacs,
-and it will have the same effect as in other applications.  */);
-  Vw32_scroll_lock_modifier = Qnil;
 
-  DEFVAR_LISP ("w32-lwindow-modifier",
-	       Vw32_lwindow_modifier,
-	       doc: /* Modifier to use for the left \"Windows\" key.
-The value can be hyper, super, meta, alt, control or shift for the
-respective modifier, or nil to appear as the `lwindow' key.
-Any other value will cause the key to be ignored.
 
-Also see the documentation of the `w32-register-hot-key' function.  */);
-  Vw32_lwindow_modifier = Qnil;
 
-  DEFVAR_LISP ("w32-rwindow-modifier",
-	       Vw32_rwindow_modifier,
-	       doc: /* Modifier to use for the right \"Windows\" key.
-The value can be hyper, super, meta, alt, control or shift for the
-respective modifier, or nil to appear as the `rwindow' key.
-Any other value will cause the key to be ignored.
-
-Also see the documentation of the `w32-register-hot-key' function.  */);
-  Vw32_rwindow_modifier = Qnil;
-
-  DEFVAR_LISP ("w32-apps-modifier",
-	       Vw32_apps_modifier,
-	       doc: /* Modifier to use for the \"Apps\" key.
-The value can be hyper, super, meta, alt, control or shift for the
-respective modifier, or nil to appear as the `apps' key.
-Any other value will cause the key to be ignored.  */);
-  Vw32_apps_modifier = Qnil;
 
   DEFVAR_BOOL ("w32-enable-synthesized-fonts", w32_enable_synthesized_fonts,
 	       doc: /* Non-nil enables selection of artificially italicized and bold fonts.  */);
@@ -12425,9 +12331,6 @@ globals_of_w32fns (void)
   resetstkoflw = NULL;
 #endif
 
-  DEFVAR_INT ("w32-ansi-code-page",
-	      w32_ansi_code_page,
-	      doc: /* The ANSI code page used by the system.  */);
   w32_ansi_code_page = GetACP ();
 
 #ifndef CYGWIN

@@ -2642,6 +2642,10 @@ AS_IF([test "$with_host" = "yes"],[
   AS_IF([test "${with_w32}" = "yes"],
     [AC_MSG_ERROR([--with-host cannot be used with another window system])])
   with_w32=no
+  dnl XPM is read by image.c's own reader, as it is on Haiku and on
+  dnl Android: libXpm is read through a header that is either Xlib's or
+  dnl the one it keeps for Windows, and neither is this.
+  with_xpm=no
   dnl The fonts are the sfnt engine's, which reads font files itself
   dnl and only measures here (sfntfont-host.c).
   HOST_OBJ="hostterm.o hostdraw.o hostrecord.o hostfont.o hostfns.o hostinput.o sfnt.o sfntfont.o sfntfont-host.o"

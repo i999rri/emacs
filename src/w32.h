@@ -271,4 +271,27 @@ extern ssize_t emacs_gnutls_push (gnutls_transport_ptr_t p,
                                   const void* buf, size_t sz);
 #endif /* HAVE_GNUTLS */
 
+/* Watching the file system, which is Windows and not the w32 window
+   system: the notifications are gathered on a thread of their own and
+   read back wherever the input of this build is read.  Declared in
+   w32term.h once, where a build that draws its frames another way has
+   none of it.
+
+   WM_EMACS_FILENOTIFY and dwMainThreadId are w32term.h's still: a
+   build with no window of its own posts to the thread and not to a
+   window, and says so there.  */
+
+struct notifications_set {
+  LPBYTE notifications;
+  DWORD size;
+  void *desc;
+  struct notifications_set *next;
+  struct notifications_set *prev;
+};
+extern struct notifications_set *notifications_set_head;
+extern Lisp_Object w32_get_watch_object (void *);
+extern Lisp_Object w32_lispy_file_action (DWORD);
+struct input_event;
+extern int handle_file_notifications (struct input_event *);
+
 #endif /* EMACS_W32_H */

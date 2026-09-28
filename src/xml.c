@@ -348,6 +348,12 @@ DEFUN ("libxml-available-p", Flibxml_available_p, Slibxml_available_p, 0, 0, 0,
 void
 syms_of_xml (void)
 {
+#ifdef WINDOWSNT
+  /* The name the library is looked for under, which w32.c loads it by.
+     Said here, where it is asked for, and not in the file of a window
+     system: it is asked for whatever draws the frames.  */
+  DEFSYM (Qlibxml2, "libxml2");
+#endif
 #ifdef HAVE_LIBXML2
   defsubr (&Slibxml_parse_html_region);
   defsubr (&Slibxml_parse_xml_region);

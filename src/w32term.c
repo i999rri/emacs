@@ -8423,9 +8423,6 @@ syms_of_w32term (void)
     doc: /* SKIP: real doc in xterm.c.  */);
   Vx_wait_for_event_timeout = make_float (0.1);
 
-  DEFVAR_INT ("w32-num-mouse-buttons",
-	      w32_num_mouse_buttons,
-	      doc: /* Number of physical mouse buttons.  */);
   w32_num_mouse_buttons = 2;
 
   DEFVAR_LISP ("w32-swap-mouse-buttons",
@@ -8448,12 +8445,6 @@ desirable when using a point-to-focus policy.  */);
 When nil, CapsLock only affects normal character input keys.  */);
   Vw32_capslock_is_shiftlock = Qnil;
 
-  DEFVAR_LISP ("w32-recognize-altgr",
-	       Vw32_recognize_altgr,
-	       doc: /* Recognize right-alt and left-ctrl as AltGr.
-When nil, the right-alt and left-ctrl key combination is
-interpreted normally.  */);
-  Vw32_recognize_altgr = Qt;
 
   DEFVAR_BOOL ("w32-use-visible-system-caret",
 	       w32_use_visible_system_caret,

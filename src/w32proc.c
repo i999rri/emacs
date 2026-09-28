@@ -4689,6 +4689,21 @@ w32_compare_strings (const char *s1, const char *s2, char *locname,
 void
 syms_of_ntproc (void)
 {
+  /* What a program turns out to be, which this file works out and the
+     one that measures fonts happened to name.  */
+  DEFSYM (Qunknown, "unknown");
+
+  /* What Windows says of itself, which w32.c reads and no window system
+     decides: said in w32fns.c and w32term.c once, where a build that
+     draws its frames another way has neither.  */
+  DEFVAR_INT ("w32-ansi-code-page",
+	      w32_ansi_code_page,
+	      doc: /* The ANSI code page used by the system.  */);
+
+  DEFVAR_INT ("w32-num-mouse-buttons",
+	      w32_num_mouse_buttons,
+	      doc: /* Number of physical mouse buttons.  */);
+
   /* How file names are passed to Windows, which is Windows and not the
      w32 window system: w32.c and dynlib.c read it, and neither of them
      draws anything.  It was declared in w32term.c, where a build that

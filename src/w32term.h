@@ -790,17 +790,6 @@ extern void w32_delete_display (struct w32_display_info *dpyinfo);
 /* Notifications come in sets.  We use a doubly linked list with a
    sentinel to communicate those sets from the watching threads to the
    main thread.  */
-struct notifications_set {
-  LPBYTE notifications;
-  DWORD size;
-  void *desc;
-  struct notifications_set *next;
-  struct notifications_set *prev;
-};
-extern struct notifications_set *notifications_set_head;
-extern Lisp_Object w32_get_watch_object (void *);
-extern Lisp_Object w32_lispy_file_action (DWORD);
-extern int handle_file_notifications (struct input_event *);
 
 extern void w32_initialize_display_info (Lisp_Object);
 extern void initialize_w32_display (struct terminal *, int *, int *);

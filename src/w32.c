@@ -81,7 +81,7 @@ int sys_rename (char const *, char const *);
 int sys_rmdir (const char *);
 int sys_close (int);
 int sys_dup2 (int, int);
-int sys_read (int, char *, unsigned int);
+int sys_read (int, void *, unsigned int);
 int sys_write (int, const void *, unsigned int);
 struct tm *sys_localtime (const time_t *);
 clock_t sys_clock (void);
@@ -9116,11 +9116,14 @@ _sys_wait_connect (int fd)
 }
 
 int
-sys_read (int fd, char * buffer, unsigned int count)
+sys_read (int fd, void * vbuffer, unsigned int count)
 {
   int nchars;
   int to_read;
   DWORD waiting;
+  /* What the rest of this reads and writes through, the bytes being
+     bytes whatever the caller called them.  */
+  char * buffer = vbuffer;
   char * orig_buffer = buffer;
 
   if (fd < 0)
@@ -10549,7 +10552,12 @@ term_ntproc (int ignored)
   /* Exit all worker threads of sys_select if necessary.  */
   free_wait_pool ();
 
+  /* Only where the images were the system's to draw: w32image.c is the
+     w32 window system's, and a build that draws its frames another way
+     decoded them itself and has nothing here to let go of.  */
+#ifdef HAVE_NATIVE_IMAGE_API
   w32_gdiplus_shutdown ();
+#endif
 }
 
 void

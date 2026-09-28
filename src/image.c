@@ -110,13 +110,16 @@ static unsigned long image_alloc_image_color (struct frame *, struct image *,
 # define DONT_CREATE_TRANSFORMED_IMAGEMAGICK_IMAGE
 #endif
 
-#ifdef HAVE_NTGUI
-
-/* We need (or want) w32.h only when we're _not_ compiling for Cygwin.  */
+/* We need (or want) w32.h only when we're _not_ compiling for Cygwin.
+   Read here and not with the w32 window system below: the libraries
+   that decode images are loaded from DLLs on Windows whatever draws
+   the frames, and these are what a file is loaded and read through.  */
 #ifdef WINDOWSNT
 # include "w32common.h"
 # include "w32.h"
 #endif
+
+#ifdef HAVE_NTGUI
 
 typedef struct w32_bitmap_record Bitmap_Record;
 #define GET_PIXEL(ximg, x, y) GetPixel (ximg, x, y)
@@ -5483,7 +5486,7 @@ xbm_load (struct frame *f, struct image *img)
  ***********************************************************************/
 
 #if defined (HAVE_XPM) || defined (HAVE_NS) || defined (HAVE_PGTK) \
-  || defined (HAVE_ANDROID)
+  || defined (HAVE_ANDROID) || defined (HAVE_HOST)
 
 static bool xpm_image_p (Lisp_Object object);
 static bool xpm_load (struct frame *f, struct image *img);
@@ -5535,7 +5538,7 @@ enum xpm_keyword_index
 };
 
 #if defined HAVE_XPM || defined HAVE_NS || defined HAVE_HAIKU	\
-  || defined HAVE_PGTK || defined HAVE_ANDROID
+  || defined HAVE_PGTK || defined HAVE_ANDROID || defined HAVE_HOST
 /* Vector of image_keyword structures describing the format
    of valid XPM image specifications.  */
 
@@ -5776,7 +5779,7 @@ init_xpm_functions (void)
 #endif /* WINDOWSNT */
 
 #if defined HAVE_XPM || defined HAVE_NS || defined HAVE_HAIKU	\
-  || defined HAVE_PGTK || defined HAVE_ANDROID
+  || defined HAVE_PGTK || defined HAVE_ANDROID || defined HAVE_HOST
 /* Value is true if COLOR_SYMBOLS is a valid color symbols list
    for XPM images.  Such a list must consist of conses whose car and
    cdr are strings.  */
@@ -6188,7 +6191,8 @@ xpm_load (struct frame *f, struct image *img)
   || (defined HAVE_NS && !defined HAVE_XPM)	\
   || (defined HAVE_HAIKU && !defined HAVE_XPM)  \
   || (defined HAVE_PGTK && !defined HAVE_XPM)	\
-  || (defined HAVE_ANDROID && !defined HAVE_XPM)
+  || (defined HAVE_ANDROID && !defined HAVE_XPM)	\
+  || (defined HAVE_HOST && !defined HAVE_XPM)
 
 /* XPM support functions for NS, Haiku and Android where libxpm is not
    available, and for Cairo.  Only XPM version 3 (without any
@@ -13037,10 +13041,14 @@ static struct image_type const image_types[] =
  { SYMBOL_INDEX (Qjpeg), jpeg_image_p, jpeg_load, image_clear_image,
    IMAGE_TYPE_INIT (init_jpeg_functions) },
 #endif
-#if defined HAVE_XPM || defined HAVE_NS || defined HAVE_HAIKU	\
-  || defined HAVE_PGTK || defined HAVE_ANDROID
+#if defined HAVE_XPM && !defined HAVE_HOST
  { SYMBOL_INDEX (Qxpm), xpm_image_p, xpm_load, image_clear_image,
    IMAGE_TYPE_INIT (init_xpm_functions) },
+#elif defined HAVE_NS || defined HAVE_HAIKU || defined HAVE_PGTK	\
+  || defined HAVE_ANDROID || defined HAVE_HOST
+ /* Read by the reader in this file and not from a library, so
+    there is nothing to open first.  */
+ { SYMBOL_INDEX (Qxpm), xpm_image_p, xpm_load, image_clear_image },
 #endif
 #if defined HAVE_WEBP
  { SYMBOL_INDEX (Qwebp), webp_image_p, webp_load, image_clear_image,
@@ -13206,7 +13214,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
 
 #if defined (HAVE_XPM) || defined (HAVE_NS) \
   || defined (HAVE_HAIKU) || defined (HAVE_PGTK) \
-  || defined (HAVE_ANDROID)
+  || defined (HAVE_ANDROID) || defined (HAVE_HOST)
   DEFSYM (Qxpm, "xpm");
   add_image_type (Qxpm);
 #endif

@@ -280,7 +280,12 @@ sys_thread_yield (void)
 #elif defined (WINDOWSNT)
 
 #include <mbctype.h>
+/* And the w32 window system's own header where that is the window
+   system: nothing below asks anything of it, and its types are another
+   window system's own where the frames are drawn by something else.  */
+#ifdef HAVE_NTGUI
 #include "w32term.h"
+#endif
 
 /* Cannot include <process.h> because of the local header by the same
    name, sigh.  */
@@ -491,7 +496,17 @@ sys_thread_set_name (const char *name)
 
 /* _beginthread wants a void function, while we are passed a function
    that returns a pointer.  So we use a wrapper.  See the command in
-   w32term.h about the need for ALIGN_STACK attribute.  */
+   w32term.h about the need for ALIGN_STACK attribute; it is said there
+   and is the compiler's business, so it is said again here for a build
+   that has no use for the rest of that file.  */
+#ifndef ALIGN_STACK
+# if defined __GNUC__ && USE_STACK_LISP_OBJECTS && !defined _WIN64	  && !defined __x86_64__ && __GNUC__ + (__GNUC_MINOR__ > 1) >= 5
+#  define ALIGN_STACK __attribute__((force_align_arg_pointer))
+# else
+#  define ALIGN_STACK
+# endif
+#endif
+
 static void ALIGN_STACK
 w32_beginthread_wrapper (void *arg)
 {

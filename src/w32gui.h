@@ -27,11 +27,17 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define local_alloc(n) (HeapAlloc (local_heap, HEAP_ZERO_MEMORY, (n)))
 #define local_free(p) (HeapFree (local_heap, 0, ((LPVOID) (p))))
 
+/* Not where another window system named these: the console of Windows
+   is drawn by this file's neighbours whatever draws the frames, and
+   brings this header with it, but the names below are the w32 window
+   system's and are another's to give where another is drawing.  */
+#ifndef HAVE_HOST
 typedef HBITMAP Emacs_Pixmap;
 
 typedef HWND Window;
 typedef HDC Display;  /* HDC so it doesn't conflict with xpm lib.  */
 typedef HCURSOR Emacs_Cursor;
+#endif
 
 /* Windows equivalent of XImage.  */
 typedef struct _XImage
@@ -48,7 +54,9 @@ extern bool w32_can_use_native_image_api (Lisp_Object);
 extern bool w32_gdiplus_startup (void);
 extern void w32_gdiplus_shutdown (void);
 
+#ifndef HAVE_HOST
 extern size_t w32_image_size (Emacs_Pixmap);
+#endif
 
 #define FACE_DEFAULT (~0)
 
