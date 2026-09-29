@@ -40,7 +40,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    X, and so on here too, with no table of our own to keep the same
    as it.  A name that is not in it is dropped.
 
-   TODO: `resize' is still Lisp's (urusi-screen--resize), which sizes
+   TODO: `resize' is still Lisp's (urushi-screen--resize), which sizes
    the frame with `set-frame-size'.  Taking it here would size the
    frame in the order of the keys around it.  */
 
@@ -416,7 +416,7 @@ take_type (void *data, const char *key, enum json_kind kind,
 /* Whether MESSAGE is one of the host's input messages, which are read
    here rather than by Lisp.  `composition' is not: what the input
    method is still turning over is drawn by Lisp at the cursor
-   (urusi-screen.el), and is no input until it comes as `text'.
+   (urushi-screen.el), and is no input until it comes as `text'.
    Called on the host's thread.  */
 
 static bool

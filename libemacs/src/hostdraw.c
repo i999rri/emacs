@@ -582,7 +582,7 @@ host_base64 (char *to, unsigned char const *from, ptrdiff_t length)
 }
 
 /* The name Lisp knows F by, which is what names the element its
-   picture is shown in (`urusi-screen--frame-name').  */
+   picture is shown in (`urushi-screen--frame-name').  */
 
 void
 host_frame_name (struct frame *f, char *name, size_t room)
