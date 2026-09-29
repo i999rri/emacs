@@ -8,6 +8,7 @@ what it was taken from and what was left behind.  Read this against
 those three when upstream moves them.
 
 Copyright (C) 2026 Free Software Foundation, Inc.
+Copyright (C) 2026 i999rri
 
 This file is part of GNU Emacs.
 

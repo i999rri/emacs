@@ -1,6 +1,6 @@
 /* Entry point of libemacs.dll, Emacs built as a DLL for a host application.
 
-Copyright (C) 2026 Free Software Foundation, Inc.
+Copyright (C) 2026 i999rri
 
 This file is part of GNU Emacs.
 

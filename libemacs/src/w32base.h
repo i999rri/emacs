@@ -14,6 +14,7 @@ system's, and a build whose frames are drawn by a host application needs
 it all the same.
 
 Copyright (C) 2026 Free Software Foundation, Inc.
+Copyright (C) 2026 i999rri
 
 This file is part of GNU Emacs.
 

@@ -1,6 +1,7 @@
 /* The sfnt font driver for frames that a host application draws.
 
 Copyright (C) 2026 Free Software Foundation, Inc.
+Copyright (C) 2026 i999rri
 
 This file is part of GNU Emacs.
 

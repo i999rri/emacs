@@ -1,6 +1,6 @@
 /* What libemacs's files share with each other, and with Emacs.
 
-Copyright (C) 2026 Free Software Foundation, Inc.
+Copyright (C) 2026 i999rri
 
 This file is part of GNU Emacs.
 

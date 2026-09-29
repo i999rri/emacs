@@ -1,6 +1,6 @@
 /* Frames that a host application draws: the terminal and its frames.
 
-Copyright (C) 2026 Free Software Foundation, Inc.
+Copyright (C) 2026 i999rri
 
 This file is part of GNU Emacs.
 
