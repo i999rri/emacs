@@ -261,11 +261,37 @@ host_iconify_frame (struct frame *f)
   SET_FRAME_ICONIFIED (f, true);
 }
 
+/* Tell the host that F is gone, so that it can let go of what it made
+   to draw F with.
+
+   It keeps that under the name F is drawn by, and a host that draws
+   what Emacs says keeps a device, a chain and a surface of its own for
+   every frame: eight megabytes for the smallest of them, on a machine
+   this measured.  A child frame -- a floating minibuffer, a popup of
+   the completions -- comes and goes all day, so a host never told
+   would hold all of them for as long as it ran.  */
+
+static void
+host_tell_frame_deleted (struct frame *f)
+{
+  const struct host_api *api = host_current_api ();
+  char name[64];
+  char message[128];
+
+  if (!api)
+    return;
+
+  /* While F is still a frame: the name is made of the frame object,
+     which is about to be no frame at all.  */
+  host_frame_name (f, name, sizeof name);
+  sprintf (message, "{\"type\":\"frame-deleted\",\"id\":\"%s\"}", name);
+  api->post (message);
+}
+
 static void
 host_delete_frame (struct frame *f)
 {
-  /* TODO: tell the host the frame is gone (`frame-deleted'), once it
-     is told of frames at all.  */
+  host_tell_frame_deleted (f);
   xfree (f->output_data.host);
   f->output_data.host = NULL;
 }
